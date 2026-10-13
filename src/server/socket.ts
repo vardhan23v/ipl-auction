@@ -69,7 +69,7 @@ export function attachSocket(httpServer: HttpServer) {
       const own = await prisma.team.findFirst({ where: { roomId: socket.data.roomId, ownerId: socket.data.userId }, select: { id: true } });
       const room = await prisma.room.findUnique({ where: { id: socket.data.roomId }, select: { hostId: true } });
       const isHost = room?.hostId === socket.data.userId || socket.data.role === "ADMIN";
-      if (!isHost) teamId = own?.id;
+      teamId = isHost ? (teamId ?? own?.id) : own?.id;
       if (!teamId) return reply({ ok: false, error: "Claim a franchise before bidding", code: "NO_TEAM" });
       if (!allow(socket.data.userId)) return reply({ ok: false, error: "Too many bids — slow down", code: "RATE_LIMIT" });
       try {

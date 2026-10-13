@@ -16,7 +16,7 @@ Built in the same stack and visual language as [hpl-auction](https://github.com/
 1. **Create a room** at `/rooms` (Google or guest sign-in). Pick purse, squad size, timer, RTM cards. You become the **host**.
 2. **Share the code** — friends open `/r/CODE` (or type the code on the home page) and land in the room lobby.
 3. **Claim franchises** — each manager picks one of the ten franchises; the host can kick/reassign.
-4. **Host runs the auction** from the host console: start, queue, timer, SELL / UNSOLD / UNDO, RTM decisions on behalf of absent owners. Owners bid from their phones. Spectators watch `/r/CODE/live` or the projector screen `/r/CODE/display`.
+4. **Host runs the auction** from the host console: start, queue, timer, SELL / UNSOLD / UNDO, RTM decisions on behalf of absent owners. Managers bid for their own franchise from the Live screen (`/r/CODE/live`) on their phones. Spectators watch the same screen or the projector screen `/r/CODE/display`.
 
 Rooms are independent — many groups can run auctions at once on one deployment. Public rooms are listed on the home page; private rooms are code-only.
 
@@ -33,7 +33,7 @@ Rooms are independent — many groups can run auctions at once on one deployment
 - **Transaction-safe sales** — SELL/MATCH run in one MySQL transaction with `SELECT … FOR UPDATE` row locks: squad entry, purse, overseas count, RTM card, player status, auction event — commit or roll back everything. **UNDO** reverses the last sale including the RTM card.
 - **Rooms & lobby (crickauction-style)** — Google or guest sign-in, create or join a room by code, then claim one of the ten franchises; the host can kick/reassign owners.
 - **Owner dashboard** — purse, squad, overseas, RTM cards, big BID button with ladder quick-bids and custom jump bids, RTM decision buttons when it's their call, their RTM-eligible list.
-- **Host console** — start player (queue or hand-picked), timer start/pause/reset, SELL / UNSOLD / SKIP / NEXT / UNDO, record bids for any franchise, act on RTM decisions on behalf of a franchise, order the queue by set.
+- **Host console** — start player (queue or hand-picked), timer start/pause/reset, SELL / UNSOLD / SKIP / NEXT / UNDO, stand in for **unclaimed** franchises (a franchise with a manager is bid for only by that manager, exactly like crickauction), act on RTM decisions for absent franchises, order the queue by set.
 - **Room management (host)** — franchises (names, colours, logos, RTM cards per team), players (CRUD, RTM list editing, assign/move, re-import the pool), drag-to-reorder queue, sold/unsold lists, bid & event log, settings, danger zone (reset / delete room).
 - **Platform admin** — `/admin` lists every room and user on the deployment.
 - **Room pages** — live room, projector **big screen**, player pool browser, squads, **RTM board**, history, analytics (Recharts), results with a **Franchise Strength** leaderboard — all under `/r/CODE/…`.

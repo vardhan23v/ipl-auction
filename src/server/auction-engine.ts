@@ -322,7 +322,10 @@ export const placeBid = (input: BidInput) => withLock(input.roomId, async () => 
   if (!user) throw new AuctionError("Not authenticated", "UNAUTHENTICATED");
   if (!team || team.roomId !== r.id) throw new AuctionError("Team not found", "NOT_FOUND");
   const isHost = r.hostId === user.id || user.role === "ADMIN";
-  if (!isHost && team.ownerId !== user.id) throw new AuctionError("You can only bid for your own franchise", "FORBIDDEN");
+  // crickauction rule: a franchise with a manager is bid for ONLY by that manager (not even the host).
+  // The host may bid only for franchises nobody has claimed (stand-in for absent teams).
+  if (team.ownerId && team.ownerId !== user.id) throw new AuctionError(`${team.name} has a manager — only they can bid for it`, "FORBIDDEN");
+  if (!team.ownerId && !isHost) throw new AuctionError("Claim a franchise before bidding", "FORBIDDEN");
   if (r.state === "PAUSED") throw new AuctionError("Auction is paused", "PAUSED");
   if (r.state === "COMPLETED") throw new AuctionError("Auction is completed", "COMPLETED");
   if (r.state.startsWith("RTM")) throw new AuctionError("Bidding closed — RTM decision in progress", "RTM");
@@ -407,10 +410,11 @@ async function rtmActionUnlocked(r: RoomRow, action: RtmAction, actor: { id: str
   assertState(r.state, [need[action]], action.replace("_", " ").toLowerCase());
   if (!r.rtmTeamId || !r.rtmBidderTeamId || !r.currentPlayerId) throw new AuctionError("RTM state is incomplete", "RTM_STATE");
   const [rtmTeam, bidder, player] = await Promise.all([prisma.team.findUniqueOrThrow({ where: { id: r.rtmTeamId } }), prisma.team.findUniqueOrThrow({ where: { id: r.rtmBidderTeamId } }), prisma.player.findUniqueOrThrow({ where: { id: r.currentPlayerId } })]);
-  // Owners may act only for the side they represent; the host may act for anyone (e.g. relaying a verbal decision).
-  if (actor && !actor.isHost) {
+  // Same rule as bidding: a franchise with a manager decides for itself; the host may only stand in for unclaimed franchises.
+  if (actor) {
     const side = ["RTM_RAISE", "RTM_KEEP"].includes(action) ? bidder : rtmTeam;
-    if (side.ownerId !== actor.id) throw new AuctionError("This decision belongs to another franchise", "FORBIDDEN");
+    if (side.ownerId && side.ownerId !== actor.id) throw new AuctionError(`${side.name} has a manager — this decision is theirs`, "FORBIDDEN");
+    if (!side.ownerId && !actor.isHost) throw new AuctionError("This decision belongs to another franchise", "FORBIDDEN");
   }
   const final = r.rtmFinalAmount ?? r.currentBid;
   clearRtmTimer(r.id);
