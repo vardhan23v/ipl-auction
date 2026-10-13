@@ -5,4 +5,5 @@
 - All auction mutations go through `src/server/auction-engine.ts` (mutex + DB transactions). Never mutate purses/squads from routes directly; admin assignment is the one exception and must keep `overseasCount`/`rtmUsed` consistent.
 - RTM: `Player.previousTeamId` is the fixed RTM list; states `RTM_OFFER → RTM_RAISE → RTM_MATCH`; owners act via socket `rtm:action` or `POST /api/auction/rtm`.
 - Roles: ADMIN, AUCTIONEER, OWNER (one franchise), SPECTATOR. Route guards live in `src/proxy.ts`.
+- Sign-in (like crickauction.in): Google (optional env) or guest-by-name → SPECTATOR → claim a franchise at `/lobby` (`POST /api/franchise/claim`) → OWNER. Staff keep email+password. The JWT callback re-reads role/teamId from DB on every session check; call `reconnectSocket()` after a role change.
 - Local DB: Docker `ipl-mysql` (see README). Don't push to GitHub from an agent — the user pushes.

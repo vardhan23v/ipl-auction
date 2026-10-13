@@ -49,6 +49,8 @@ model User {
   email        String   @unique
   passwordHash String
   role         Role     @default(SPECTATOR)
+  image        String?  @db.Text
+  isGuest      Boolean  @default(false)
   team         Team?    @relation(fields: [teamId], references: [id])
   teamId       String?  @unique
   createdAt    DateTime @default(now())

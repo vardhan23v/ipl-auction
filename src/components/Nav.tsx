@@ -5,7 +5,7 @@ import { roleHome } from "@/lib/auth-client";
 
 export function Nav() {
   const { data } = useSession();
-  const u = data?.user;
+  const u = data?.user?.id ? data.user : null;
   return (
     <header className="sticky top-0 z-40 border-b border-line/60 bg-pitch/80 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
@@ -20,10 +20,10 @@ export function Nav() {
           <Link href="/results" className="hidden rounded-md px-3 py-1.5 hover:bg-panel-2 lg:inline">Results</Link>
           {u ? (
             <>
-              <Link href={roleHome(u.role)} className="btn-ghost !px-3 !py-1.5">{u.role === "OWNER" ? "My Franchise" : u.role[0] + u.role.slice(1).toLowerCase()}</Link>
+              <Link href={roleHome(u.role, u.teamId)} className={`${u.role === "SPECTATOR" ? "btn-gold" : "btn-ghost"} !px-3 !py-1.5`}>{u.role === "OWNER" ? "My Franchise" : u.role === "SPECTATOR" ? "Pick a franchise" : u.role[0] + u.role.slice(1).toLowerCase()}</Link>
               <button onClick={() => signOut({ callbackUrl: "/" })} className="px-2 text-muted hover:text-ink">Logout</button>
             </>
-          ) : <Link href="/login" className="btn-gold !px-3 !py-1.5">Franchise Login</Link>}
+          ) : <Link href="/login" className="btn-gold !px-3 !py-1.5">Join / Sign in</Link>}
         </nav>
       </div>
     </header>

@@ -31,7 +31,7 @@ export default async function Home() {
           <p className="mx-auto mt-4 max-w-2xl text-muted md:text-lg">Ten franchises. {money(settings.startingPurse)} each. {poolCount} players, {overseasCount} of them overseas. Right-To-Match cards let a franchise bring its own stars home.</p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link href="/live" className="btn-red !px-6 !py-3 text-base"><span className="live-dot h-2 w-2 rounded-full bg-white" /> WATCH LIVE AUCTION</Link>
-            <Link href="/login" className="btn-gold !px-6 !py-3 text-base">FRANCHISE LOGIN</Link>
+            <Link href="/login" className="btn-gold !px-6 !py-3 text-base">JOIN AS MANAGER</Link>
             <Link href="/rtm" className="btn-rtm !px-6 !py-3 text-base">RTM BOARD</Link>
           </div>
           <div className="display mt-10 text-lg tracking-widest text-muted">{teams.length} Franchises • {poolCount} Players • {money(totalPurse)} Total Purse</div>
@@ -51,7 +51,7 @@ export default async function Home() {
         <section className="mx-auto max-w-7xl px-4 py-10">
           <SectionTitle kicker="How it works" title="From marquee set to final squad" />
           <div className="grid gap-3 md:grid-cols-4">
-            {[["01", "Claim a franchise", "Each owner logs in to one of the ten IPL franchises with a ₹120 Cr purse."], ["02", "Players come up by set", `Marquee stars first, then capped and uncapped sets. A ${settings.timerSeconds}-second clock resets on every bid.`], ["03", "Bid on the IPL ladder", "₹5 L steps up to ₹1 Cr, ₹10 L to ₹2 Cr, ₹20 L to ₹5 Cr, then ₹25 L — or jump with a custom bid."], ["04", "Play the RTM card", "When one of your former players is about to be sold, match the final price and bring them home."]].map(([n, t, d]) => (
+            {[["01", "Claim a franchise", "Sign in with Google or as a guest, then claim one of the ten franchises in the lobby — ₹120 Cr purse each."], ["02", "Players come up by set", `Marquee stars first, then capped and uncapped sets. A ${settings.timerSeconds}-second clock resets on every bid.`], ["03", "Bid on the IPL ladder", "₹5 L steps up to ₹1 Cr, ₹10 L to ₹2 Cr, ₹20 L to ₹5 Cr, then ₹25 L — or jump with a custom bid."], ["04", "Play the RTM card", "When one of your former players is about to be sold, match the final price and bring them home."]].map(([n, t, d]) => (
               <div key={n} className="card p-5"><div className="display text-3xl text-gold">{n}</div><div className="mt-2 font-bold">{t}</div><div className="mt-1 text-sm text-muted">{d}</div></div>
             ))}
           </div>
@@ -99,7 +99,7 @@ export default async function Home() {
         <section className="mx-auto max-w-4xl px-4 py-10">
           <SectionTitle kicker="FAQ" title="Questions, answered" />
           <div className="flex flex-col gap-2">
-            {[["Who can bid?", "Each franchise owner from their own account. The auctioneer can also record a bid on a franchise's behalf. Spectators only watch."], ["What are the increments?", "The official IPL ladder: ₹5 L below ₹1 Cr, ₹10 L up to ₹2 Cr, ₹20 L up to ₹5 Cr, ₹25 L above. Custom jump bids are allowed in multiples of ₹5 L."], ["Which players can be RTM'd?", "Only players on a franchise's fixed RTM list — by default the squad they were part of in IPL 2025. The admin can edit the list per player."], ["How many RTM cards?", `${settings.defaultRtmCards} per franchise by default; the admin can set a different number for each team.`], ["What happens when the timer hits zero?", settings.autoSell ? "The player is sold to the highest bidder automatically (after the RTM window, if any), or marked unsold with no bids." : "Bidding closes and the auctioneer marks the player SOLD or UNSOLD."], ["Can unsold players come back?", settings.unsoldReentry ? "Yes — the admin can return them to the queue for an accelerated round." : "Not in this edition."]].map(([q, a]) => (
+            {[["Who can bid?", "Anyone who signs in (Google or guest) and claims a free franchise in the lobby. The auctioneer can also record a bid on a franchise's behalf. Spectators only watch."], ["What are the increments?", "The official IPL ladder: ₹5 L below ₹1 Cr, ₹10 L up to ₹2 Cr, ₹20 L up to ₹5 Cr, ₹25 L above. Custom jump bids are allowed in multiples of ₹5 L."], ["Which players can be RTM'd?", "Only players on a franchise's fixed RTM list — by default the squad they were part of in IPL 2025. The admin can edit the list per player."], ["How many RTM cards?", `${settings.defaultRtmCards} per franchise by default; the admin can set a different number for each team.`], ["What happens when the timer hits zero?", settings.autoSell ? "The player is sold to the highest bidder automatically (after the RTM window, if any), or marked unsold with no bids." : "Bidding closes and the auctioneer marks the player SOLD or UNSOLD."], ["Can unsold players come back?", settings.unsoldReentry ? "Yes — the admin can return them to the queue for an accelerated round." : "Not in this edition."]].map(([q, a]) => (
               <details key={q} className="card group p-4"><summary className="cursor-pointer font-semibold">{q}</summary><p className="mt-2 text-sm text-muted">{a}</p></details>
             ))}
           </div>

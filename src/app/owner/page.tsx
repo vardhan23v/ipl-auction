@@ -12,12 +12,13 @@ export const metadata = { title: "My Franchise" };
 
 export default async function OwnerPage() {
   const s = await getSession();
-  if (!s?.user || s.user.role !== "OWNER" || !s.user.teamId) redirect("/login");
+  if (!s?.user) redirect("/login");
+  if (s.user.role !== "OWNER" || !s.user.teamId) redirect("/lobby");
   const [team, snap, settings] = await Promise.all([
     prisma.team.findUnique({ where: { id: s.user.teamId }, include: { squad: { include: { player: true }, orderBy: { createdAt: "desc" } }, formerPlayers: { orderBy: [{ basePrice: "desc" }, { name: "asc" }], include: { soldTo: { select: { abbreviation: true, color: true } }, squadEntry: { select: { viaRtm: true } } } } } }),
     getSnapshot(), getSettings(),
   ]);
-  if (!team) redirect("/login");
+  if (!team) redirect("/lobby");
   return (
     <>
       <Nav />

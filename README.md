@@ -22,6 +22,7 @@ Built in the same stack and visual language as [hpl-auction](https://github.com/
   RTM is only possible for players on a franchise's **fixed list** (`Player.previousTeamId`, pre-filled from IPL 2025 squads, editable per player in the admin panel), needs an unused card, enough purse, and room in the squad and overseas quota. Each step has a timeout with a safe default (pass / keep / decline).
 - **Shared countdown + auto-sell** — one server timer; when it hits zero the highest bidder wins (after the RTM window) or the player goes unsold. Can be switched off for a manual auctioneer.
 - **Transaction-safe sales** — SELL/MATCH run in one MySQL transaction with `SELECT … FOR UPDATE` row locks: squad entry, purse, overseas count, RTM card, player status, auction event — commit or roll back everything. **UNDO** reverses the last sale including the RTM card.
+- **Lobby & sign-in (crickauction-style)** — Google or guest sign-in, then claim one of the ten franchises; the admin can still reassign or create password logins per franchise.
 - **Owner dashboard** — purse, squad, overseas, RTM cards, big BID button with ladder quick-bids and custom jump bids, RTM decision buttons when it's their call, their RTM-eligible list.
 - **Auctioneer console** — start player (queue or hand-picked), timer start/pause/reset, SELL / UNSOLD / SKIP / NEXT / UNDO, record bids for any franchise, act on RTM decisions on behalf of a franchise, order the queue by set.
 - **Admin** — franchises (names, colours, logos, owner logins, RTM cards per team), players (CRUD, RTM list editing, assign/move, re-import the pool), drag-to-reorder queue, sold/unsold lists, bid & event log, users, settings.
@@ -41,13 +42,14 @@ npm run db:seed          # 10 franchises, accounts, 273-player pool with RTM lis
 npm run dev              # http://localhost:3000
 ```
 
+**Sign-in works like crickauction.in:** managers press **Continue with Google** or **Join as Guest** (just a name), land in the **lobby** (`/lobby`) and claim a free franchise — that makes them its OWNER. A franchise taken by another manager is locked. Staff use the email + password login under "Admin / auctioneer sign-in":
+
 | Role | Email | Password |
 |---|---|---|
 | Admin | `admin@ipl.local` | `ipl2026` |
 | Auctioneer | `auctioneer@ipl.local` | `ipl2026` |
-| Owners | `owner.mi@ipl.local`, `owner.csk@ipl.local`, … `owner.lsg@ipl.local` | `ipl2026` |
 
-Spectators need no account — `/live` and `/display` are public.
+Google sign-in appears once `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` are set (OAuth redirect URI: `<NEXTAUTH_URL>/api/auth/callback/google`); guest sign-in always works. Spectators need no account — `/live` and `/display` are public.
 
 ## 📏 Auction rules (defaults, all editable in Settings)
 
@@ -94,7 +96,8 @@ One service runs the app + WebSockets, alongside Railway **MySQL** on the privat
 | `NEXTAUTH_URL` | the public URL of the service |
 | `SOCKET_SERVER_URL` | same as `NEXTAUTH_URL` |
 | `NODE_ENV` | `production` |
-| `SEED_PASSWORD` | optional, password for the seeded accounts |
+| `SEED_PASSWORD` | optional, password for the seeded staff accounts |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | optional, enables "Continue with Google" |
 
 3. First deploy runs `prisma migrate deploy`. Seed once from your machine or a Railway shell:
 

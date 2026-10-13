@@ -20,7 +20,7 @@ export function BidButton({ a, teamId }: { a: A; teamId: string }) {
     <div className={`card p-4 ${highest ? "border-gold/60" : ""}`}>
       <div className="flex flex-col gap-3 md:flex-row md:items-center">
         <button className={`btn-gold flex-1 !rounded-xl !py-5 text-2xl md:text-3xl ${!cannot ? "shadow-[0_0_40px_rgba(245,184,46,.35)]" : ""}`} disabled={cannot || busy} onClick={() => bid()}>
-          {highest ? "YOU'RE HIGHEST" : <>BID {money(a.nextBid)}</>}
+          {highest ? "YOU'RE HIGHEST" : !p ? "WAITING FOR A PLAYER" : <>BID {money(a.nextBid)}</>}
         </button>
         <div className="flex flex-wrap gap-2 md:w-72">
           {options.slice(1).map((v) => <button key={v} className="btn-ghost !px-3 !py-2 text-sm" disabled={cannot || busy || (me?.purse ?? 0) < v} onClick={() => bid(v)}>{money(v)}</button>)}

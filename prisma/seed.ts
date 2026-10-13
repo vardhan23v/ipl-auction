@@ -61,22 +61,20 @@ async function main() {
 
   const teams = [];
   for (const [i, t] of TEAMS.entries()) {
-    const ownerEmail = `owner.${t.abbreviation.toLowerCase()}@ipl.local`;
     teams.push(await prisma.team.upsert({
       where: { abbreviation: t.abbreviation },
       update: { sortOrder: i, logoUrl: t.logoUrl, color: t.color, color2: t.color2 },
-      create: { ...t, sortOrder: i, ownerName: `${t.abbreviation} Owner`, ownerEmail, startingPurse: settings.startingPurse, purse: settings.startingPurse, rtmTotal: settings.defaultRtmCards },
+      create: { ...t, sortOrder: i, startingPurse: settings.startingPurse, purse: settings.startingPurse, rtmTotal: settings.defaultRtmCards },
     }));
   }
   await prisma.user.upsert({ where: { email: "admin@ipl.local" }, update: {}, create: { name: "Auction Admin", email: "admin@ipl.local", role: "ADMIN", passwordHash: hash } });
   await prisma.user.upsert({ where: { email: "auctioneer@ipl.local" }, update: {}, create: { name: "Auctioneer", email: "auctioneer@ipl.local", role: "AUCTIONEER", passwordHash: hash } });
-  for (const t of teams) {
-    const email = t.ownerEmail ?? `owner.${t.abbreviation.toLowerCase()}@ipl.local`;
-    await prisma.user.upsert({ where: { email }, update: { teamId: t.id, role: "OWNER" }, create: { name: t.ownerName ?? `${t.name} Owner`, email, role: "OWNER", teamId: t.id, passwordHash: hash } });
-  }
+  // Franchises are claimed in the lobby (Google / guest sign-in) — no pre-made owner accounts.
+  await prisma.user.deleteMany({ where: { email: { endsWith: "@ipl.local" }, role: "OWNER" } });
+  await prisma.team.updateMany({ where: { owner: null }, data: { ownerName: null } });
   const r = await importPool(prisma, process.env.SEED_REPLACE === "1");
   console.log(`Players: ${r.created} created, ${r.updated} refreshed`);
-  console.log(`\nLogins (password: ${pw})\n  admin@ipl.local (ADMIN)\n  auctioneer@ipl.local (AUCTIONEER)\n  owner.mi@ipl.local … owner.lsg@ipl.local (franchise OWNERS)`);
+  console.log(`\nStaff logins (password: ${pw})\n  admin@ipl.local (ADMIN)\n  auctioneer@ipl.local (AUCTIONEER)\nManagers sign in with Google or as a guest and claim a franchise at /lobby.`);
 }
 
 if (process.argv[1]?.endsWith("seed.ts")) main().finally(() => prisma.$disconnect());
