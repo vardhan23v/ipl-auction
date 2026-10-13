@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "tsx watch --include \"src/server/**\" server.ts",
     "build": "prisma generate && next build",
-    "start": "NODE_ENV=production tsx server.ts",
+    "start": "prisma migrate deploy && NODE_ENV=production tsx server.ts",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "db:migrate": "prisma migrate dev",
