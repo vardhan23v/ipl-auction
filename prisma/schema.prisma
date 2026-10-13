@@ -1,0 +1,228 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  AUCTIONEER
+  OWNER
+  SPECTATOR
+}
+
+enum PlayerStatus {
+  POOL
+  WAITING
+  LIVE
+  SOLD
+  UNSOLD
+  SKIPPED
+}
+
+enum PlayingRole {
+  BATSMAN
+  BOWLER
+  ALL_ROUNDER
+  WICKETKEEPER
+}
+
+enum AuctionState {
+  WAITING
+  LIVE
+  PAUSED
+  PLAYER_LIVE
+  RTM_OFFER
+  RTM_RAISE
+  RTM_MATCH
+  SOLD
+  UNSOLD
+  COMPLETED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(SPECTATOR)
+  team         Team?    @relation(fields: [teamId], references: [id])
+  teamId       String?  @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  bids         Bid[]
+  auditLogs    AuditLog[]
+}
+
+/// A franchise. Money is stored in lakhs (₹120 Cr = 12000).
+model Team {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  abbreviation  String   @unique
+  color         String   @default("#f59e0b")
+  color2        String?
+  logoUrl       String?
+  ownerName     String?
+  ownerEmail    String?
+  startingPurse Int      @default(12000)
+  purse         Int      @default(12000)
+  spent         Int      @default(0)
+  squadCount    Int      @default(0)
+  overseasCount Int      @default(0)
+  rtmTotal      Int      @default(2)
+  rtmUsed       Int      @default(0)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  owner         User?
+  squad         SquadPlayer[]
+  bids          Bid[]
+  wonPlayers    Player[] @relation("SoldTo")
+  formerPlayers Player[] @relation("PreviousTeam")
+  events        AuctionEvent[]
+}
+
+model Player {
+  id             String       @id @default(cuid())
+  externalId     String?      @unique
+  name           String
+  photoUrl       String?      @db.Text
+  role           PlayingRole  @default(BATSMAN)
+  nationality    String       @default("India")
+  overseas       Boolean      @default(false)
+  capped         Boolean      @default(true)
+  set            String       @default("Set 1")
+  basePrice      Int          @default(30)
+  rating         Int?
+  matches        Int          @default(0)
+  runs           Int          @default(0)
+  wickets        Int          @default(0)
+  average        Float?
+  strikeRate     Float?
+  economy        Float?
+  highScore      String?
+  bestBowling    String?
+  bio            String?      @db.Text
+  status         PlayerStatus @default(POOL)
+  queueOrder     Int?
+  soldPrice      Int?
+  soldTo         Team?        @relation("SoldTo", fields: [soldToId], references: [id])
+  soldToId       String?
+  soldAt         DateTime?
+  /// The franchise that may use a Right-To-Match card on this player.
+  previousTeam   Team?        @relation("PreviousTeam", fields: [previousTeamId], references: [id], onDelete: SetNull)
+  previousTeamId String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  bids           Bid[]
+  squadEntry     SquadPlayer?
+  events         AuctionEvent[]
+
+  @@index([status])
+  @@index([queueOrder])
+  @@index([previousTeamId])
+  @@index([set])
+}
+
+model AuctionSettings {
+  id              Int      @id @default(1)
+  auctionName     String   @default("IPL Mega Auction 2026")
+  auctionDate     DateTime?
+  startingPurse   Int      @default(12000)
+  maxSquadSize    Int      @default(25)
+  minSquadSize    Int      @default(18)
+  maxOverseas     Int      @default(8)
+  /// 0 = official IPL increment ladder (5L / 10L / 20L / 25L); otherwise a fixed increment in lakhs.
+  bidIncrement    Int      @default(0)
+  timerSeconds    Int      @default(15)
+  rtmTimerSeconds Int      @default(20)
+  autoTimer       Boolean  @default(true)
+  autoSell        Boolean  @default(true)
+  rtmEnabled      Boolean  @default(true)
+  defaultRtmCards Int      @default(2)
+  spectatorAccess Boolean  @default(true)
+  unsoldReentry   Boolean  @default(true)
+  updatedAt       DateTime @updatedAt
+}
+
+/// Singleton live-auction state. Server is the source of truth.
+model Auction {
+  id               Int          @id @default(1)
+  state            AuctionState @default(WAITING)
+  currentPlayerId  String?
+  currentBid       Int          @default(0)
+  highestTeamId    String?
+  highestBidId     String?
+  timerEndsAt      DateTime?
+  timerRemainingMs Int?
+  timerRunning     Boolean      @default(false)
+  // Right-To-Match negotiation
+  rtmTeamId        String?
+  rtmBidderTeamId  String?
+  rtmFinalAmount   Int?
+  rtmDeadlineAt    DateTime?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  updatedAt        DateTime     @updatedAt
+  version          Int          @default(0)
+}
+
+model Bid {
+  id        String   @id @default(cuid())
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId  String
+  team      Team     @relation(fields: [teamId], references: [id])
+  teamId    String
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId    String?
+  amount    Int
+  kind      String   @default("BID")
+  createdAt DateTime @default(now())
+
+  @@index([playerId, createdAt])
+  @@index([teamId])
+}
+
+model AuctionEvent {
+  id        String   @id @default(cuid())
+  type      String
+  player    Player?  @relation(fields: [playerId], references: [id], onDelete: SetNull)
+  playerId  String?
+  team      Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  teamId    String?
+  amount    Int?
+  payload   Json?
+  undone    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model SquadPlayer {
+  id        String   @id @default(cuid())
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId    String
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId  String   @unique
+  price     Int
+  viaRtm    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([teamId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId    String?
+  action    String
+  entity    String?
+  entityId  String?
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

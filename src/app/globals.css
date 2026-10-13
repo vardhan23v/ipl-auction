@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+@theme {
+  --color-pitch: #07090f;
+  --color-panel: #0e1320;
+  --color-panel-2: #141b2d;
+  --color-line: #1f2a44;
+  --color-gold: #f5b82e;
+  --color-gold-2: #ffd166;
+  --color-live: #ff2e4d;
+  --color-rtm: #a855f7;
+  --color-rtm-2: #d8b4fe;
+  --color-ink: #e8ecf5;
+  --color-muted: #8b95ad;
+  --font-display: var(--font-display), "Oswald", Impact, sans-serif;
+  --font-sans: var(--font-sans), system-ui, sans-serif;
+}
+
+html { color-scheme: dark; }
+body {
+  background: radial-gradient(1200px 600px at 50% -10%, #1a2340 0%, #07090f 60%) fixed, var(--color-pitch);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.stadium::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(600px 300px at 15% 20%, rgba(245,184,46,.12), transparent 60%),
+    radial-gradient(600px 300px at 85% 10%, rgba(255,46,77,.10), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0 1px, transparent 1px 48px);
+}
+.glass { background: rgba(20,27,45,.6); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.07); }
+.card { background: var(--color-panel); border: 1px solid var(--color-line); border-radius: 1rem; min-width: 0; }
+.display { font-family: var(--font-display); letter-spacing: .02em; text-transform: uppercase; }
+.money { color: var(--color-gold); font-variant-numeric: tabular-nums; }
+
+.btn-gold { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-semibold transition active:scale-[.98] disabled:opacity-40 disabled:cursor-not-allowed bg-gold text-black hover:bg-gold-2; }
+.btn-ghost { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-semibold transition active:scale-[.98] disabled:opacity-40 disabled:cursor-not-allowed border border-line bg-panel-2 text-ink hover:border-gold/60; }
+.btn-red { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-semibold transition active:scale-[.98] disabled:opacity-40 disabled:cursor-not-allowed bg-live text-white hover:brightness-110; }
+.btn-green { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-semibold transition active:scale-[.98] disabled:opacity-40 disabled:cursor-not-allowed bg-emerald-500 text-black hover:bg-emerald-400; }
+.btn-rtm { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-semibold transition active:scale-[.98] disabled:opacity-40 disabled:cursor-not-allowed bg-rtm text-white hover:brightness-110; }
+.input { @apply w-full rounded-lg border border-line bg-panel-2 px-3 py-2 text-ink placeholder:text-muted focus:border-gold focus:outline-none; }
+.label { @apply mb-1 block text-xs font-semibold uppercase tracking-wider text-muted; }
+.chip { @apply inline-flex items-center gap-1 rounded-md bg-panel-2 px-2 py-1 text-xs; }
+
+@keyframes pulse-live { 0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255,46,77,.6);} 50% { opacity: .6; box-shadow: 0 0 0 8px rgba(255,46,77,0);} }
+.live-dot { animation: pulse-live 1.4s infinite; }
+@keyframes slide-in { from { transform: translateY(-10px); opacity: 0 } to { transform: none; opacity: 1 } }
+.bid-new { animation: slide-in .35s ease-out; }
+@keyframes pop { 0% { transform: scale(.6); opacity: 0 } 60% { transform: scale(1.08); opacity: 1 } 100% { transform: scale(1) } }
+.pop { animation: pop .6s cubic-bezier(.2,.9,.3,1.2); }
+@keyframes reveal { from { transform: translateY(24px) scale(.97); opacity: 0 } to { transform: none; opacity: 1 } }
+.reveal { animation: reveal .5s ease-out; }
+@keyframes tick { 0% { transform: scale(1.12); color: #fff } 100% { transform: scale(1) } }
+.tick { animation: tick .3s ease-out; }
+@keyframes bump { 0% { transform: scale(1) } 40% { transform: scale(1.06); text-shadow: 0 0 30px rgba(245,184,46,.7) } 100% { transform: scale(1) } }
+.bump { animation: bump .5s ease-out; }
+@keyframes stamp { 0% { transform: rotate(-12deg) scale(2); opacity: 0 } 50% { transform: rotate(-8deg) scale(.95); opacity: 1 } 100% { transform: rotate(-8deg) scale(1) } }
+.stamp { animation: stamp .5s cubic-bezier(.2,.9,.3,1.1) both; }
+@keyframes rtm-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(168,85,247,.55) } 50% { box-shadow: 0 0 0 10px rgba(168,85,247,0) } }
+.rtm-pulse { animation: rtm-pulse 1.6s infinite; }
+@keyframes flip-in { 0% { transform: perspective(600px) rotateY(90deg); opacity: 0 } 100% { transform: perspective(600px) rotateY(0); opacity: 1 } }
+.flip-in { animation: flip-in .55s cubic-bezier(.2,.9,.3,1.1) both; }
+
+::selection { background: rgba(245,184,46,.35); }
+* { scrollbar-width: thin; scrollbar-color: #263353 transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: #263353; border-radius: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+html { scroll-behavior: smooth; }
+:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; border-radius: 4px; }
+details summary::-webkit-details-marker { display: none; }
+details summary { list-style: none; position: relative; padding-right: 1.5rem; }
+details summary::after { content: "+"; position: absolute; right: .25rem; top: 0; color: var(--color-gold); font-weight: 700; transition: transform .2s; }
+details[open] summary::after { transform: rotate(45deg); }
+img { user-select: none; }
+
+@keyframes orb { 0% { transform: translate(0,0) scale(1); opacity:.5 } 50% { transform: translate(30px,-40px) scale(1.15); opacity:.9 } 100% { transform: translate(-20px,10px) scale(1); opacity:.5 } }
+@keyframes ember { 0% { transform: translateY(0) scale(1); opacity:0 } 15% { opacity:.8 } 100% { transform: translateY(-140px) scale(.4); opacity:0 } }
+@keyframes ringspin { from { transform: rotate(0) } to { transform: rotate(360deg) } }
+@keyframes sheen { 0%, 60% { transform: translateX(-120%) skewX(-15deg) } 100% { transform: translateX(220%) skewX(-15deg) } }
+@keyframes dots { 0%,20% { opacity:.2 } 50% { opacity:1 } 80%,100% { opacity:.2 } }
+@keyframes barshine { 0% { transform: translateX(-100%) } 100% { transform: translateX(300%) } }
+@keyframes bidglow { 0%,100% { text-shadow: 0 0 24px rgba(245,184,46,.35) } 50% { text-shadow: 0 0 48px rgba(245,184,46,.75), 0 0 90px rgba(245,184,46,.3) } }
+@keyframes floaty { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-8px) } }
+.orb { position:absolute; border-radius:9999px; filter: blur(40px); pointer-events:none; animation: orb 9s ease-in-out infinite; }
+.ember { position:absolute; bottom:0; width:5px; height:5px; border-radius:9999px; background:#f5b82e; animation: ember 5s linear infinite; pointer-events:none; }
+.ring { animation: ringspin 14s linear infinite; transform-origin: center; }
+.sheen { position:relative; overflow:hidden; }
+.sheen::after { content:""; position:absolute; inset:0 auto 0 0; width:35%; background:linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent); animation: sheen 5s ease-in-out infinite; pointer-events:none; }
+.dot1 { animation: dots 1.4s infinite } .dot2 { animation: dots 1.4s .25s infinite } .dot3 { animation: dots 1.4s .5s infinite }
+.bar-anim { position:relative; overflow:hidden; }
+.bar-anim::after { content:""; position:absolute; inset:0; width:40%; background:linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent); animation: barshine 2.6s ease-in-out infinite; }
+.bid-glow { animation: bidglow 2.4s ease-in-out infinite; }
+.floaty { animation: floaty 4s ease-in-out infinite; }
+.team-row { transition: transform .18s ease, box-shadow .18s ease; }
+.team-row:hover { transform: translateX(3px); box-shadow: 0 4px 20px rgba(0,0,0,.35); }
+@media (prefers-reduced-motion: reduce) { .orb,.ember,.ring,.sheen::after,.bar-anim::after,.bid-glow,.floaty,.rtm-pulse { animation: none } }
+
+@keyframes goldflow { 0% { background-position: 0% 50% } 100% { background-position: 200% 50% } }
+.gold-text { background: linear-gradient(90deg, #f5b82e, #ffd166, #fff3d6, #ffd166, #f5b82e); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: goldflow 4s linear infinite; }
+.rtm-text { background: linear-gradient(90deg, #a855f7, #d8b4fe, #f5d0fe, #d8b4fe, #a855f7); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: goldflow 4s linear infinite; }
+
+input, select, textarea { min-width: 0; max-width: 100%; }
