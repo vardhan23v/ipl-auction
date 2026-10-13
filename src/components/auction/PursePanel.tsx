@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { money, ROLE_SHORT } from "@/lib/format";
 import type { TeamSnapshot } from "@/types/auction";
 import { TeamBadge } from "../TeamBadge";
+import { useRoom, roomApi } from "../RoomContext";
 type Squad = { ownerName: string | null; rtmTotal: number; rtmUsed: number; squad: { id: string; price: number; viaRtm: boolean; player: { name: string; role: string; photoUrl: string | null; overseas: boolean; rating: number | null } }[] };
 
 export function RtmCards({ total, used, size = "sm" }: { total: number; used: number; size?: "sm" | "md" }) {
@@ -11,9 +12,11 @@ export function RtmCards({ total, used, size = "sm" }: { total: number; used: nu
 }
 
 export function PursePanel({ teams, highlight, mine, rtmTeam }: { teams: TeamSnapshot[]; highlight?: string | null; mine?: string | null; rtmTeam?: string | null }) {
+  const { code } = useRoom();
   const [open, setOpen] = useState<string | null>(null);
   const [squads, setSquads] = useState<Record<string, Squad>>({});
-  const load = (id: string) => fetch(`/api/public/squad/${id}`).then((r) => r.json()).then((d) => setSquads((s) => ({ ...s, [id]: d }))).catch(() => {});
+  const load = (id: string) => fetch(roomApi(code, `/squad/${id}`)).then((r) => r.json()).then((d) => setSquads((s) => ({ ...s, [id]: d }))).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `load` is stable per render; re-fetch when open/teams change
   useEffect(() => { if (open) load(open); }, [open, teams]);
   return (
     <div className="card p-4">
@@ -42,7 +45,7 @@ export function PursePanel({ teams, highlight, mine, rtmTeam }: { teams: TeamSna
               </button>
               {isOpen && (
                 <div className="border-t border-line/60 px-3 py-2">
-                  <div className="flex items-center justify-between py-1 text-xs text-muted"><span>Owner: <b className="text-ink">{sq?.ownerName ?? t.ownerName ?? "TBA"}</b></span><span>Spent {money(t.spent)}</span></div>
+                  <div className="flex items-center justify-between py-1 text-xs text-muted"><span>Manager: <b className="text-ink">{sq?.ownerName ?? t.ownerName ?? "unclaimed"}</b></span><span>Spent {money(t.spent)}</span></div>
                   {!sq && <div className="py-2 text-center text-xs text-muted">Loading…</div>}
                   {sq?.squad.map((sp) => (
                     <div key={sp.id} className="flex items-center justify-between border-t border-line/40 py-1 text-sm">

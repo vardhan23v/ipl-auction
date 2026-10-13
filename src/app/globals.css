@@ -104,3 +104,14 @@ img { user-select: none; }
 .rtm-text { background: linear-gradient(90deg, #a855f7, #d8b4fe, #f5d0fe, #d8b4fe, #a855f7); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: goldflow 4s linear infinite; }
 
 input, select, textarea { min-width: 0; max-width: 100%; }
+
+/* ---- responsive polish ---- */
+@media (max-width: 640px) {
+  .display { letter-spacing: .01em; }
+  .card { border-radius: .85rem; }
+}
+.page-enter { animation: reveal .35s ease-out both; }
+button, a { -webkit-tap-highlight-color: transparent; }
+@media (hover: none) { .team-row:hover { transform: none; box-shadow: none; } }
+.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.scroll-x::-webkit-scrollbar { display: none; }

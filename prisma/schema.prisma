@@ -7,11 +7,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// Platform-level role. Everything auction-related is scoped to a Room (host / owner / spectator per room).
 enum Role {
   ADMIN
-  AUCTIONEER
-  OWNER
-  SPECTATOR
+  USER
 }
 
 enum PlayerStatus {
@@ -48,27 +47,97 @@ model User {
   name         String
   email        String   @unique
   passwordHash String
-  role         Role     @default(SPECTATOR)
+  role         Role     @default(USER)
   image        String?  @db.Text
   isGuest      Boolean  @default(false)
-  team         Team?    @relation(fields: [teamId], references: [id])
-  teamId       String?  @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  hostedRooms  Room[]
+  memberships  RoomMember[]
+  ownedTeams   Team[]
   bids         Bid[]
   auditLogs    AuditLog[]
 }
 
-/// A franchise. Money is stored in lakhs (₹120 Cr = 12000).
+/// One auction room = one complete auction: its own settings, franchises, player pool and live state.
+model Room {
+  id              String       @id @default(cuid())
+  code            String       @unique
+  name            String
+  host            User         @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  hostId          String
+  isPublic        Boolean      @default(true)
+  // ---- settings ----
+  startingPurse   Int          @default(12000)
+  maxSquadSize    Int          @default(25)
+  minSquadSize    Int          @default(18)
+  maxOverseas     Int          @default(8)
+  /// 0 = official IPL increment ladder (5L / 10L / 20L / 25L); otherwise a fixed increment in lakhs.
+  bidIncrement    Int          @default(0)
+  timerSeconds    Int          @default(15)
+  rtmTimerSeconds Int          @default(20)
+  autoTimer       Boolean      @default(true)
+  autoSell        Boolean      @default(true)
+  rtmEnabled      Boolean      @default(true)
+  defaultRtmCards Int          @default(2)
+  unsoldReentry   Boolean      @default(true)
+  // ---- live auction state (server is the source of truth) ----
+  state            AuctionState @default(WAITING)
+  currentPlayerId  String?
+  currentBid       Int          @default(0)
+  highestTeamId    String?
+  highestBidId     String?
+  timerEndsAt      DateTime?
+  timerRemainingMs Int?
+  timerRunning     Boolean      @default(false)
+  rtmTeamId        String?
+  rtmBidderTeamId  String?
+  rtmFinalAmount   Int?
+  rtmDeadlineAt    DateTime?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  version          Int          @default(0)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  lastActiveAt     DateTime     @default(now())
+  members          RoomMember[]
+  teams            Team[]
+  players          Player[]
+  bids             Bid[]
+  events           AuctionEvent[]
+  squad            SquadPlayer[]
+
+  @@index([isPublic, lastActiveAt])
+  @@index([hostId])
+}
+
+/// HOST runs the auction, OWNER manages a franchise, SPECTATOR watches. The host may also own a franchise.
+model RoomMember {
+  id       String   @id @default(cuid())
+  room     Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   String
+  role     String   @default("SPECTATOR")
+  joinedAt DateTime @default(now())
+
+  @@unique([roomId, userId])
+  @@index([userId])
+}
+
+/// A franchise inside a room. Money is stored in lakhs (₹120 Cr = 12000).
 model Team {
   id            String   @id @default(cuid())
-  name          String   @unique
-  abbreviation  String   @unique
+  room          Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId        String
+  name          String
+  abbreviation  String
   color         String   @default("#f59e0b")
   color2        String?
-  logoUrl       String?
+  logoUrl       String?  @db.Text
+  owner         User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  ownerId       String?
   ownerName     String?
-  ownerEmail    String?
   startingPurse Int      @default(12000)
   purse         Int      @default(12000)
   spent         Int      @default(0)
@@ -79,17 +148,22 @@ model Team {
   sortOrder     Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-  owner         User?
   squad         SquadPlayer[]
   bids          Bid[]
   wonPlayers    Player[] @relation("SoldTo")
   formerPlayers Player[] @relation("PreviousTeam")
   events        AuctionEvent[]
+
+  @@unique([roomId, abbreviation])
+  @@unique([roomId, ownerId])
+  @@index([ownerId])
 }
 
 model Player {
   id             String       @id @default(cuid())
-  externalId     String?      @unique
+  room           Room         @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId         String
+  externalId     String?
   name           String
   photoUrl       String?      @db.Text
   role           PlayingRole  @default(BATSMAN)
@@ -111,7 +185,7 @@ model Player {
   status         PlayerStatus @default(POOL)
   queueOrder     Int?
   soldPrice      Int?
-  soldTo         Team?        @relation("SoldTo", fields: [soldToId], references: [id])
+  soldTo         Team?        @relation("SoldTo", fields: [soldToId], references: [id], onDelete: SetNull)
   soldToId       String?
   soldAt         DateTime?
   /// The franchise that may use a Right-To-Match card on this player.
@@ -123,60 +197,19 @@ model Player {
   squadEntry     SquadPlayer?
   events         AuctionEvent[]
 
-  @@index([status])
-  @@index([queueOrder])
+  @@unique([roomId, externalId])
+  @@index([roomId, status])
+  @@index([roomId, queueOrder])
   @@index([previousTeamId])
-  @@index([set])
-}
-
-model AuctionSettings {
-  id              Int      @id @default(1)
-  auctionName     String   @default("IPL Mega Auction 2026")
-  auctionDate     DateTime?
-  startingPurse   Int      @default(12000)
-  maxSquadSize    Int      @default(25)
-  minSquadSize    Int      @default(18)
-  maxOverseas     Int      @default(8)
-  /// 0 = official IPL increment ladder (5L / 10L / 20L / 25L); otherwise a fixed increment in lakhs.
-  bidIncrement    Int      @default(0)
-  timerSeconds    Int      @default(15)
-  rtmTimerSeconds Int      @default(20)
-  autoTimer       Boolean  @default(true)
-  autoSell        Boolean  @default(true)
-  rtmEnabled      Boolean  @default(true)
-  defaultRtmCards Int      @default(2)
-  spectatorAccess Boolean  @default(true)
-  unsoldReentry   Boolean  @default(true)
-  updatedAt       DateTime @updatedAt
-}
-
-/// Singleton live-auction state. Server is the source of truth.
-model Auction {
-  id               Int          @id @default(1)
-  state            AuctionState @default(WAITING)
-  currentPlayerId  String?
-  currentBid       Int          @default(0)
-  highestTeamId    String?
-  highestBidId     String?
-  timerEndsAt      DateTime?
-  timerRemainingMs Int?
-  timerRunning     Boolean      @default(false)
-  // Right-To-Match negotiation
-  rtmTeamId        String?
-  rtmBidderTeamId  String?
-  rtmFinalAmount   Int?
-  rtmDeadlineAt    DateTime?
-  startedAt        DateTime?
-  completedAt      DateTime?
-  updatedAt        DateTime     @updatedAt
-  version          Int          @default(0)
 }
 
 model Bid {
   id        String   @id @default(cuid())
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId    String
   player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
   playerId  String
-  team      Team     @relation(fields: [teamId], references: [id])
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   teamId    String
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   userId    String?
@@ -186,10 +219,13 @@ model Bid {
 
   @@index([playerId, createdAt])
   @@index([teamId])
+  @@index([roomId, createdAt])
 }
 
 model AuctionEvent {
   id        String   @id @default(cuid())
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId    String
   type      String
   player    Player?  @relation(fields: [playerId], references: [id], onDelete: SetNull)
   playerId  String?
@@ -200,11 +236,13 @@ model AuctionEvent {
   undone    Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  @@index([createdAt])
+  @@index([roomId, createdAt])
 }
 
 model SquadPlayer {
   id        String   @id @default(cuid())
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId    String
   team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   teamId    String
   player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
@@ -214,6 +252,7 @@ model SquadPlayer {
   createdAt DateTime @default(now())
 
   @@index([teamId])
+  @@index([roomId])
 }
 
 model AuditLog {

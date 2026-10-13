@@ -3,13 +3,22 @@
 # 🏏 IPL Mega Auction
 
 **Every Player Has a Price. Some Have a Match.**
-A live IPL franchise auction platform — ten franchises, a 273-player pool, ₹120 Cr purse per team, real-time bidding on the official IPL increment ladder, and **Right-To-Match (RTM) cards** that work only on each franchise's fixed list of former players.
+An open-source, self-hostable IPL franchise auction platform. Anyone signs in, **creates a room**, shares the 6-character code, friends claim the ten franchises and the host runs a live auction — a 273-player pool, ₹120 Cr purse per team, real-time bidding on the official IPL increment ladder, and **Right-To-Match (RTM) cards** that work only on each franchise's fixed list of former players. Works great on phones.
 
 Built in the same stack and visual language as [hpl-auction](https://github.com/vardhan23v/hpl-auction); player pool from the open-source [Crick Auction](https://github.com/Shaurya01836/ipl-auction) dataset (Apache-2.0). Hosted on **Railway** (app + MySQL).
 
 </div>
 
 ---
+
+## 🎮 How a game works
+
+1. **Create a room** at `/rooms` (Google or guest sign-in). Pick purse, squad size, timer, RTM cards. You become the **host**.
+2. **Share the code** — friends open `/r/CODE` (or type the code on the home page) and land in the room lobby.
+3. **Claim franchises** — each manager picks one of the ten franchises; the host can kick/reassign.
+4. **Host runs the auction** from the host console: start, queue, timer, SELL / UNSOLD / UNDO, RTM decisions on behalf of absent owners. Owners bid from their phones. Spectators watch `/r/CODE/live` or the projector screen `/r/CODE/display`.
+
+Rooms are independent — many groups can run auctions at once on one deployment. Public rooms are listed on the home page; private rooms are code-only.
 
 ## ✨ What's inside
 
@@ -22,11 +31,12 @@ Built in the same stack and visual language as [hpl-auction](https://github.com/
   RTM is only possible for players on a franchise's **fixed list** (`Player.previousTeamId`, pre-filled from IPL 2025 squads, editable per player in the admin panel), needs an unused card, enough purse, and room in the squad and overseas quota. Each step has a timeout with a safe default (pass / keep / decline).
 - **Shared countdown + auto-sell** — one server timer; when it hits zero the highest bidder wins (after the RTM window) or the player goes unsold. Can be switched off for a manual auctioneer.
 - **Transaction-safe sales** — SELL/MATCH run in one MySQL transaction with `SELECT … FOR UPDATE` row locks: squad entry, purse, overseas count, RTM card, player status, auction event — commit or roll back everything. **UNDO** reverses the last sale including the RTM card.
-- **Lobby & sign-in (crickauction-style)** — Google or guest sign-in, then claim one of the ten franchises; the admin can still reassign or create password logins per franchise.
+- **Rooms & lobby (crickauction-style)** — Google or guest sign-in, create or join a room by code, then claim one of the ten franchises; the host can kick/reassign owners.
 - **Owner dashboard** — purse, squad, overseas, RTM cards, big BID button with ladder quick-bids and custom jump bids, RTM decision buttons when it's their call, their RTM-eligible list.
-- **Auctioneer console** — start player (queue or hand-picked), timer start/pause/reset, SELL / UNSOLD / SKIP / NEXT / UNDO, record bids for any franchise, act on RTM decisions on behalf of a franchise, order the queue by set.
-- **Admin** — franchises (names, colours, logos, owner logins, RTM cards per team), players (CRUD, RTM list editing, assign/move, re-import the pool), drag-to-reorder queue, sold/unsold lists, bid & event log, users, settings.
-- **Public pages** — live room, projector **big screen**, player pool browser, squads, **RTM board**, history, analytics (Recharts), results with a **Franchise Strength** leaderboard.
+- **Host console** — start player (queue or hand-picked), timer start/pause/reset, SELL / UNSOLD / SKIP / NEXT / UNDO, record bids for any franchise, act on RTM decisions on behalf of a franchise, order the queue by set.
+- **Room management (host)** — franchises (names, colours, logos, RTM cards per team), players (CRUD, RTM list editing, assign/move, re-import the pool), drag-to-reorder queue, sold/unsold lists, bid & event log, settings, danger zone (reset / delete room).
+- **Platform admin** — `/admin` lists every room and user on the deployment.
+- **Room pages** — live room, projector **big screen**, player pool browser, squads, **RTM board**, history, analytics (Recharts), results with a **Franchise Strength** leaderboard — all under `/r/CODE/…`.
 
 ## 🚀 Quick start
 
@@ -38,20 +48,19 @@ docker exec ipl-mysql mysql -uroot -piplroot -e "GRANT ALL PRIVILEGES ON *.* TO 
 cp .env.example .env
 npm install
 npx prisma migrate dev
-npm run db:seed          # 10 franchises, accounts, 273-player pool with RTM lists
+npm run db:seed          # creates the platform admin account (rooms bring their own pool)
 npm run dev              # http://localhost:3000
 ```
 
-**Sign-in works like crickauction.in:** managers press **Continue with Google** or **Join as Guest** (just a name), land in the **lobby** (`/lobby`) and claim a free franchise — that makes them its OWNER. A franchise taken by another manager is locked. Staff use the email + password login under "Admin / auctioneer sign-in":
+**Sign-in works like crickauction.in:** press **Continue with Google** or **Join as Guest** (just a name), then create a room or join one by code. Inside a room's lobby you claim a free franchise — that makes you its OWNER for that room. The platform admin uses the email + password login:
 
 | Role | Email | Password |
 |---|---|---|
-| Admin | `admin@ipl.local` | `ipl2026` |
-| Auctioneer | `auctioneer@ipl.local` | `ipl2026` |
+| Platform admin | `admin@ipl.local` | `ipl2026` (or `SEED_PASSWORD`) |
 
-Google sign-in appears once `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` are set (OAuth redirect URI: `<NEXTAUTH_URL>/api/auth/callback/google`); guest sign-in always works. Spectators need no account — `/live` and `/display` are public.
+Google sign-in appears once `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` are set (OAuth redirect URI: `<NEXTAUTH_URL>/api/auth/callback/google`); guest sign-in always works. Spectators need no account — `/r/CODE/live` and `/r/CODE/display` are public.
 
-## 📏 Auction rules (defaults, all editable in Settings)
+## 📏 Auction rules (defaults, editable per room by the host)
 
 | Rule | Value |
 |---|---|
@@ -74,10 +83,11 @@ Browser ──HTTP──▶ Next.js 16 (App Router) ──┐
 ```
 
 - `server.ts` — custom Node server running Next.js and Socket.IO on one port.
-- `src/server/auction-engine.ts` — single source of truth. Every mutation runs under a process-wide mutex and persists to MySQL. State machine: `WAITING → LIVE ⇄ PAUSED`, `LIVE → PLAYER_LIVE → SOLD | RTM_OFFER → RTM_RAISE → RTM_MATCH → SOLD`, `PLAYER_LIVE → UNSOLD`, `… → COMPLETED`.
-- `src/server/socket.ts` — authenticates sockets from the NextAuth JWT, rate-limits bids, handles `bid:place` and `rtm:action`, broadcasts full snapshots.
+- `src/server/auction-engine.ts` — single source of truth, scoped per room (`roomId`). Every mutation runs under a per-room mutex and persists to MySQL. State machine: `WAITING → LIVE ⇄ PAUSED`, `LIVE → PLAYER_LIVE → SOLD | RTM_OFFER → RTM_RAISE → RTM_MATCH → SOLD`, `PLAYER_LIVE → UNSOLD`, `… → COMPLETED`.
+- `src/server/socket.ts` — authenticates sockets from the NextAuth JWT, clients `room:join {code}` a Socket.IO room, rate-limits bids, handles `bid:place` and `rtm:action`, broadcasts full snapshots to that room only.
 - `src/hooks/useAuction.ts` — client hook: snapshot, offset-corrected countdowns (bid + RTM), SOLD/UNSOLD/RTM flashes.
-- `prisma/data/players.json` — the pool (name, role, nationality, set, base price, photo, stats, rating, previous franchise).
+- `prisma/data/players.json` — the pool (name, role, nationality, set, base price, photo, stats, rating, previous franchise). Copied into every new room by `src/lib/pool.ts`.
+- `src/lib/room.ts` / `src/lib/api.ts` — room codes, `getRoomAccess()` (host / owner / spectator), `roomGuard()` for the `/api/rooms/[code]/…` routes.
 
 ### Realtime events
 `auction:started/paused/resumed/completed` · `player:started/sold/unsold/skipped/next` · `bid:placed/accepted/rejected` · `rtm:offer/raise/match/passed` · `timer:updated` · `team:purseUpdated/squadUpdated` · `auction:undo` · `state:sync` — every event carries the full snapshot.
@@ -96,7 +106,7 @@ One service runs the app + WebSockets, alongside Railway **MySQL** on the privat
 | `NEXTAUTH_URL` | the public URL of the service |
 | `SOCKET_SERVER_URL` | same as `NEXTAUTH_URL` |
 | `NODE_ENV` | `production` |
-| `SEED_PASSWORD` | optional, password for the seeded staff accounts |
+| `SEED_PASSWORD` | optional, password for the seeded platform admin |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | optional, enables "Continue with Google" |
 
 3. First deploy runs `prisma migrate deploy`. Seed once from your machine or a Railway shell:
@@ -114,5 +124,5 @@ npm run dev          # tsx watch server.ts (Next dev + Socket.IO)
 npm run build        # prisma generate && next build
 npm start            # production server
 npm run typecheck    # tsc --noEmit
-npm run db:seed      # idempotent seed; SEED_REPLACE=1 wipes the auction and re-imports the pool
+npm run db:seed      # idempotent: creates/updates the platform admin (SEED_ADMIN_EMAIL, SEED_PASSWORD)
 ```

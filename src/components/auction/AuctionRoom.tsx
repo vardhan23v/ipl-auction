@@ -10,18 +10,20 @@ import { BidFeed } from "./BidFeed";
 import { PursePanel } from "./PursePanel";
 import { ResultOverlay } from "./ResultOverlay";
 import { RecentResults } from "./RecentResults";
-import type { AuctionSnapshot } from "@/types/auction";
+import type { AuctionSnapshot, RoomAccess } from "@/types/auction";
+import { RoomCtx } from "../RoomContext";
 
 /** Shared room layout. `controls` renders under the player card (bid button / RTM panel / auctioneer console). */
-export function AuctionRoom({ initial, myTeamId, controls }: { initial: AuctionSnapshot | null; myTeamId?: string | null; controls?: (a: ReturnType<typeof useAuction>) => ReactNode }) {
-  const a = useAuction(initial);
+export function AuctionRoom({ code, access, initial, myTeamId, controls, stickyControls }: { code: string; access?: RoomAccess | null; initial: AuctionSnapshot | null; myTeamId?: string | null; controls?: (a: ReturnType<typeof useAuction>) => ReactNode; stickyControls?: (a: ReturnType<typeof useAuction>) => ReactNode }) {
+  const a = useAuction(code, initial);
   const { push } = useToast();
   useEffect(() => { if (a.lastRejection) { push({ title: "Rejected", body: a.lastRejection, tone: "error" }); a.clearRejection(); } }, [a.lastRejection]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (a.flash) push({ title: a.flash.kind === "SOLD" ? `SOLD: ${a.flash.playerName}` : a.flash.kind === "RTM" ? `RTM window: ${a.flash.teamName}` : `UNSOLD: ${a.flash.playerName}`, body: a.flash.kind === "SOLD" ? `${a.flash.teamName}${a.flash.viaRtm ? " (RTM)" : ""}` : undefined, tone: a.flash.kind === "SOLD" ? "success" : a.flash.kind === "RTM" ? "rtm" : "error" }); }, [a.flash]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!a.snap) return (<><ConnectionOverlay /><div className="p-10 text-center text-muted">Connecting to auction…</div></>);
   const s = a.snap;
   return (
-    <div className="mx-auto w-full max-w-7xl min-w-0 px-3 py-4 md:px-4">
+    <RoomCtx.Provider value={{ code, access: access ?? null }}>
+    <div className={`mx-auto w-full max-w-7xl min-w-0 px-3 py-4 md:px-4 ${stickyControls ? "pb-32 md:pb-4" : ""}`}>
       <ConnectionOverlay />
       <ResultOverlay flash={a.flash} />
       <LiveHeader snap={s} connected={a.connected} clients={a.clients} />
@@ -37,6 +39,8 @@ export function AuctionRoom({ initial, myTeamId, controls }: { initial: AuctionS
         </div>
         <div className="hidden lg:block"><PursePanel teams={s.teams} highlight={s.highestTeamId} mine={myTeamId} rtmTeam={s.rtm?.teamId} /></div>
       </div>
+      {stickyControls && <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-pitch/95 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden">{stickyControls(a)}</div>}
     </div>
+    </RoomCtx.Provider>
   );
 }

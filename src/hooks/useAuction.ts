@@ -7,7 +7,8 @@ import type { AuctionSnapshot, RtmAction } from "@/types/auction";
 export interface FlashEvent { kind: "SOLD" | "UNSOLD" | "RTM"; playerName: string; teamName?: string; teamColor?: string; amount?: number; viaRtm?: boolean; id: number }
 type Reply = { ok: boolean; error?: string; code?: string };
 
-export function useAuction(initial?: AuctionSnapshot | null) {
+/** Live auction state for one room (joined by its code). */
+export function useAuction(roomCode: string, initial?: AuctionSnapshot | null) {
   const [snap, setSnap] = useState<AuctionSnapshot | null>(initial ?? null);
   const [connected, setConnected] = useState(false);
   const [clients, setClients] = useState(0);
@@ -18,21 +19,23 @@ export function useAuction(initial?: AuctionSnapshot | null) {
 
   useEffect(() => {
     const s = getSocket();
-    const onSnap = (p: { snapshot?: AuctionSnapshot }) => { if (p?.snapshot) { setSnap(p.snapshot); offset.current = p.snapshot.serverTime - Date.now(); } };
+    const onSnap = (p: { snapshot?: AuctionSnapshot }) => { if (p?.snapshot && p.snapshot.roomCode === roomCode) { setSnap(p.snapshot); offset.current = p.snapshot.serverTime - Date.now(); } };
     const events = ["state:sync", "auction:started", "auction:paused", "auction:resumed", "auction:completed", "player:started", "player:skipped", "player:next", "bid:accepted", "timer:updated", "team:purseUpdated", "auction:undo", "rtm:raise", "rtm:match"];
     events.forEach((e) => s.on(e, onSnap));
-    s.on("player:sold", (p: { playerName: string; teamName: string; teamColor: string; amount: number; viaRtm?: boolean; snapshot: AuctionSnapshot }) => { onSnap(p); setFlash({ kind: "SOLD", playerName: p.playerName, teamName: p.teamName, teamColor: p.teamColor, amount: p.amount, viaRtm: p.viaRtm, id: Date.now() }); });
-    s.on("player:unsold", (p: { playerName: string; snapshot: AuctionSnapshot }) => { onSnap(p); setFlash({ kind: "UNSOLD", playerName: p.playerName, id: Date.now() }); });
-    s.on("rtm:offer", (p: { snapshot: AuctionSnapshot }) => { onSnap(p); const sn = p.snapshot; const t = sn.teams.find((x) => x.id === sn.rtm?.teamId); setFlash({ kind: "RTM", playerName: sn.currentPlayer?.name ?? "", teamName: t?.name, teamColor: t?.color, amount: sn.rtm?.finalAmount, id: Date.now() }); });
-    s.on("bid:rejected", (p: { error: string }) => setLastRejection(p.error));
-    s.on("presence", (p: { clients: number }) => setClients(p.clients));
-    s.on("time", (p: { serverTime: number }) => { offset.current = p.serverTime - Date.now(); });
-    s.on("connect", () => { setConnected(true); s.emit("state:request"); });
-    s.on("disconnect", () => setConnected(false));
-    if (s.connected) { setConnected(true); s.emit("state:request"); }
+    const onSold = (p: { playerName: string; teamName: string; teamColor: string; amount: number; viaRtm?: boolean; snapshot: AuctionSnapshot }) => { if (p.snapshot?.roomCode !== roomCode) return; onSnap(p); setFlash({ kind: "SOLD", playerName: p.playerName, teamName: p.teamName, teamColor: p.teamColor, amount: p.amount, viaRtm: p.viaRtm, id: Date.now() }); };
+    const onUnsold = (p: { playerName: string; snapshot: AuctionSnapshot }) => { if (p.snapshot?.roomCode !== roomCode) return; onSnap(p); setFlash({ kind: "UNSOLD", playerName: p.playerName, id: Date.now() }); };
+    const onRtm = (p: { snapshot: AuctionSnapshot }) => { if (p.snapshot?.roomCode !== roomCode) return; onSnap(p); const sn = p.snapshot; const t = sn.teams.find((x) => x.id === sn.rtm?.teamId); setFlash({ kind: "RTM", playerName: sn.currentPlayer?.name ?? "", teamName: t?.name, teamColor: t?.color, amount: sn.rtm?.finalAmount, id: Date.now() }); };
+    const onRej = (p: { error: string }) => setLastRejection(p.error);
+    const onPresence = (p: { clients: number }) => setClients(p.clients);
+    const onTime = (p: { serverTime: number }) => { offset.current = p.serverTime - Date.now(); };
+    const join = () => s.emit("room:join", { code: roomCode });
+    const onConnect = () => { setConnected(true); join(); };
+    const onDisconnect = () => setConnected(false);
+    s.on("player:sold", onSold); s.on("player:unsold", onUnsold); s.on("rtm:offer", onRtm); s.on("bid:rejected", onRej); s.on("presence", onPresence); s.on("time", onTime); s.on("connect", onConnect); s.on("disconnect", onDisconnect);
+    if (s.connected) { setConnected(true); join(); }
     const tick = setInterval(() => setNow(Date.now() + offset.current), 200);
-    return () => { events.forEach((e) => s.off(e, onSnap)); ["player:sold", "player:unsold", "rtm:offer", "bid:rejected", "presence", "time"].forEach((e) => s.off(e)); clearInterval(tick); };
-  }, []);
+    return () => { events.forEach((e) => s.off(e, onSnap)); s.off("player:sold", onSold); s.off("player:unsold", onUnsold); s.off("rtm:offer", onRtm); s.off("bid:rejected", onRej); s.off("presence", onPresence); s.off("time", onTime); s.off("connect", onConnect); s.off("disconnect", onDisconnect); clearInterval(tick); };
+  }, [roomCode]);
 
   useEffect(() => { if (!flash) return; const t = setTimeout(() => setFlash(null), flash.kind === "RTM" ? 3200 : 4500); return () => clearTimeout(t); }, [flash]);
 

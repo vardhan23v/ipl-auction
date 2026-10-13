@@ -2,11 +2,13 @@
 import { useEffect, useState } from "react";
 import { getSocket } from "@/lib/socket-client";
 import { money, ROLE_LABEL } from "@/lib/format";
+import { useRoom, roomApi } from "../RoomContext";
 type Row = { id: string; name: string; role: string; status: string; basePrice: number; soldPrice: number | null; overseas: boolean; viaRtm: boolean; soldTo: { name: string; abbreviation: string; color: string } | null };
 export function RecentResults() {
+  const { code } = useRoom();
   const [rows, setRows] = useState<Row[]>([]);
-  const load = () => fetch("/api/public/recent").then((r) => r.json()).then(setRows).catch(() => {});
-  useEffect(() => { load(); const s = getSocket(); const ev = ["player:sold", "player:unsold", "auction:undo", "state:sync"]; ev.forEach((e) => s.on(e, load)); return () => { ev.forEach((e) => s.off(e, load)); }; }, []);
+  const load = () => fetch(roomApi(code, "/recent")).then((r) => r.json()).then(setRows).catch(() => {});
+  useEffect(() => { load(); const s = getSocket(); const ev = ["player:sold", "player:unsold", "auction:undo", "state:sync"]; ev.forEach((e) => s.on(e, load)); return () => { ev.forEach((e) => s.off(e, load)); }; }, [code]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="card p-4">
       <h3 className="display mb-2 text-lg">Recent Results</h3>

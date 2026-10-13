@@ -1,9 +1,10 @@
 # IPL Mega Auction — notes for agents
 
-- Stack mirrors `vardhan23v/hpl-auction`: Next.js 16 App Router + TS + Tailwind 4, Prisma 6 + MySQL, Socket.IO on a custom `server.ts`, NextAuth JWT. Dark "stadium" theme in `src/app/globals.css` (gold money, red live, purple RTM).
+- Stack mirrors `vardhan23v/hpl-auction`: Next.js 16 App Router + TS + Tailwind 4, Prisma 6 + MySQL, Socket.IO on a custom `server.ts`, NextAuth JWT. Dark "stadium" theme in `src/app/globals.css` (gold money, red live, purple RTM). Mobile-first: every page must work at 375px.
+- **Multi-room (open-source, crickauction-style):** anyone signs in (Google or guest) and creates a *room* (`Room`, 6-char `code`). Each room has its own 10 franchises, 273-player pool, settings and live state. Room URLs: `/r/CODE` (lobby), `/r/CODE/live|display|owner|host|players|squads|rtm|history|analytics|results|manage/*`. Room APIs live under `src/app/api/rooms/[code]/...`; `roomGuard(code, "host"|"member"|"any")` in `src/lib/api.ts`; `loadRoomPage()` in `src/lib/room-page.ts` for pages.
 - Money is integer **lakhs** everywhere (₹1 Cr = 100). Format with `money()` from `src/lib/format.ts`.
-- All auction mutations go through `src/server/auction-engine.ts` (mutex + DB transactions). Never mutate purses/squads from routes directly; admin assignment is the one exception and must keep `overseasCount`/`rtmUsed` consistent.
-- RTM: `Player.previousTeamId` is the fixed RTM list; states `RTM_OFFER → RTM_RAISE → RTM_MATCH`; owners act via socket `rtm:action` or `POST /api/auction/rtm`.
-- Roles: ADMIN, AUCTIONEER, OWNER (one franchise), SPECTATOR. Route guards live in `src/proxy.ts`.
-- Sign-in (like crickauction.in): Google (optional env) or guest-by-name → SPECTATOR → claim a franchise at `/lobby` (`POST /api/franchise/claim`) → OWNER. Staff keep email+password. The JWT callback re-reads role/teamId from DB on every session check; call `reconnectSocket()` after a role change.
+- All auction mutations go through `src/server/auction-engine.ts` (per-room mutex + DB transactions, every function takes `roomId`). Never mutate purses/squads from routes directly; host player assignment is the one exception and must keep `overseasCount`/`rtmUsed` consistent. Socket rooms are `room:<id>`; clients send `room:join {code}` first.
+- RTM: `Player.previousTeamId` is the fixed RTM list; states `RTM_OFFER → RTM_RAISE → RTM_MATCH`; owners act via socket `rtm:action` or `POST /api/rooms/[code]/rtm`.
+- Roles: platform `User.role` is ADMIN or USER. Inside a room: HOST (`Room.hostId`), OWNER (`Team.ownerId`), SPECTATOR (`RoomMember`). `getRoomAccess()` in `src/lib/room.ts` resolves them. Route guards for `/admin`, `/rooms`, `/r/:code/host|manage|owner` live in `src/proxy.ts`.
+- Sign-in: Google (optional env) or guest-by-name; staff admin keeps email+password (`admin@ipl.local`). Claim a franchise with `POST /api/rooms/[code]/claim`; call `reconnectSocket()` after a role change.
 - Local DB: Docker `ipl-mysql` (see README). Don't push to GitHub from an agent — the user pushes.
