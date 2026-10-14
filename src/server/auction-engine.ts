@@ -229,12 +229,18 @@ export const resumeAuction = (roomId: string) => withLock(roomId, async () => {
   await broadcast(roomId, "auction:resumed");
 });
 
+/** The room creator can end the auction at ANY point. A lot still on the block (bidding or RTM) is voided: its bids are discarded and the player goes back to the pool unsold. */
 export const completeAuction = (roomId: string) => withLock(roomId, async () => {
   const r = await getRoom(roomId);
-  assertState(r.state, ["LIVE", "PAUSED", "SOLD", "UNSOLD"], "complete");
+  if (r.state === "COMPLETED") throw new AuctionError("Auction is already completed", "COMPLETED");
+  if (r.state === "WAITING") throw new AuctionError("Auction has not started", "NOT_STARTED");
   clearTimer(roomId); clearRtmTimer(roomId);
-  await prisma.room.update({ where: { id: roomId }, data: { state: "COMPLETED", completedAt: new Date(), ...CLEAR_PLAYER, ...touch } });
-  await log(roomId, "AUCTION_COMPLETED");
+  const voided = r.currentPlayerId && (r.state === "PLAYER_LIVE" || r.state.startsWith("RTM")) ? r.currentPlayerId : null;
+  await prisma.$transaction([
+    ...(voided ? [prisma.bid.deleteMany({ where: { playerId: voided } }), prisma.player.update({ where: { id: voided }, data: { status: "POOL" } })] : []),
+    prisma.room.update({ where: { id: roomId }, data: { state: "COMPLETED", completedAt: new Date(), ...CLEAR_PLAYER, ...touch } }),
+  ]);
+  await log(roomId, "AUCTION_COMPLETED", voided ? { playerId: voided } : {});
   await broadcast(roomId, "auction:completed");
 });
 
