@@ -34,7 +34,12 @@ function Login() {
   useEffect(() => { fetch("/api/auth/providers").then((r) => r.json()).then((p) => setGoogle(!!p?.google)).catch(() => setGoogle(false)); }, []);
 
   async function finish(res: { error?: string | null } | undefined, failMsg: string) {
-    if (res?.error) { setErr(failMsg); setBusy(false); return; }
+    if (res?.error) {
+      // next-auth reports a null/invalid credential as "CredentialsSignin"; anything else is the server's own error text.
+      const e = res.error;
+      setErr(e === "CredentialsSignin" ? failMsg : /database|reach|ECONN|P10\d\d/i.test(e) ? "The server can't reach its database right now. Start MySQL (Docker) and try again." : `Sign-in failed on the server: ${e.slice(0, 160)}`);
+      setBusy(false); return;
+    }
     const s = await getSession();
     r.push(next ?? (s?.user ? roleHome(s.user.role) : "/rooms"));
   }
