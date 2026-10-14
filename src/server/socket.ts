@@ -64,12 +64,10 @@ export function attachSocket(httpServer: HttpServer) {
       const reply = (r: { ok: boolean; error?: string; code?: string }) => { cb?.(r); if (!r.ok) socket.emit("bid:rejected", r); };
       if (!socket.data.userId) return reply({ ok: false, error: "Sign in to bid", code: "FORBIDDEN" });
       if (!socket.data.roomId) return reply({ ok: false, error: "Join a room first", code: "NO_ROOM" });
-      // Owners always bid for their own franchise; the host may name any team.
-      let teamId = payload?.teamId;
+      // A manager always bids for the franchise they claimed — nobody (not even the host) bids for another team.
+      void payload?.teamId;
       const own = await prisma.team.findFirst({ where: { roomId: socket.data.roomId, ownerId: socket.data.userId }, select: { id: true } });
-      const room = await prisma.room.findUnique({ where: { id: socket.data.roomId }, select: { hostId: true } });
-      const isHost = room?.hostId === socket.data.userId || socket.data.role === "ADMIN";
-      teamId = isHost ? (teamId ?? own?.id) : own?.id;
+      const teamId = own?.id;
       if (!teamId) return reply({ ok: false, error: "Claim a franchise before bidding", code: "NO_TEAM" });
       if (!allow(socket.data.userId)) return reply({ ok: false, error: "Too many bids — slow down", code: "RATE_LIMIT" });
       try {

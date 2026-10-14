@@ -82,7 +82,7 @@ export function Lobby({ code, room, access, me, teams, members, initial }: { cod
                 <Link href={`/r/${code}/manage`} className="btn-ghost">Manage room (players, teams, settings)</Link>
                 <Link href={`/r/${code}/display`} className="btn-ghost">⛶ Big-screen view</Link>
               </div>
-              {room.state === "WAITING" && <div className="mt-2 text-[11px] text-muted">Unclaimed franchises can still be claimed after the start, or you can bid for them from the host console.</div>}
+              {room.state === "WAITING" && <div className="mt-2 text-[11px] text-muted">Unclaimed franchises can still be claimed after the start. Only a franchise&apos;s manager can bid for it — unclaimed teams sit out.</div>}
             </div>
           )}
           <div className="card p-4">

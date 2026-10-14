@@ -95,6 +95,7 @@ type TeamRow = Prisma.TeamGetPayload<object>;
 type PlayerRow = Prisma.PlayerGetPayload<object>;
 
 function canRtm(team: TeamRow | null | undefined, player: PlayerRow, amount: number, r: RoomRow, highestTeamId: string | null) {
+  if (!team?.ownerId) return false; // only a franchise with a manager can exercise RTM — nobody bids or matches on behalf of an unclaimed team
   if (!r.rtmEnabled || !team) return false;
   if (highestTeamId && highestTeamId === team.id) return false;
   if (team.rtmUsed >= team.rtmTotal) return false;
@@ -321,11 +322,9 @@ export const placeBid = (input: BidInput) => withLock(input.roomId, async () => 
   const [r, user, team] = await Promise.all([getRoom(input.roomId), prisma.user.findUnique({ where: { id: input.userId } }), prisma.team.findUnique({ where: { id: input.teamId } })]);
   if (!user) throw new AuctionError("Not authenticated", "UNAUTHENTICATED");
   if (!team || team.roomId !== r.id) throw new AuctionError("Team not found", "NOT_FOUND");
-  const isHost = r.hostId === user.id || user.role === "ADMIN";
-  // crickauction rule: a franchise with a manager is bid for ONLY by that manager (not even the host).
-  // The host may bid only for franchises nobody has claimed (stand-in for absent teams).
-  if (team.ownerId && team.ownerId !== user.id) throw new AuctionError(`${team.name} has a manager — only they can bid for it`, "FORBIDDEN");
-  if (!team.ownerId && !isHost) throw new AuctionError("Claim a franchise before bidding", "FORBIDDEN");
+  // crickauction rule: ONLY the manager who claimed a franchise can bid, and only for that franchise. The host never bids on anyone's behalf.
+  if (!team.ownerId) throw new AuctionError(`${team.name} has no manager yet — claim it in the lobby to bid`, "FORBIDDEN");
+  if (team.ownerId !== user.id) throw new AuctionError(`Only the manager of ${team.name} can bid for it`, "FORBIDDEN");
   if (r.state === "PAUSED") throw new AuctionError("Auction is paused", "PAUSED");
   if (r.state === "COMPLETED") throw new AuctionError("Auction is completed", "COMPLETED");
   if (r.state.startsWith("RTM")) throw new AuctionError("Bidding closed — RTM decision in progress", "RTM");
@@ -410,11 +409,10 @@ async function rtmActionUnlocked(r: RoomRow, action: RtmAction, actor: { id: str
   assertState(r.state, [need[action]], action.replace("_", " ").toLowerCase());
   if (!r.rtmTeamId || !r.rtmBidderTeamId || !r.currentPlayerId) throw new AuctionError("RTM state is incomplete", "RTM_STATE");
   const [rtmTeam, bidder, player] = await Promise.all([prisma.team.findUniqueOrThrow({ where: { id: r.rtmTeamId } }), prisma.team.findUniqueOrThrow({ where: { id: r.rtmBidderTeamId } }), prisma.player.findUniqueOrThrow({ where: { id: r.currentPlayerId } })]);
-  // Same rule as bidding: a franchise with a manager decides for itself; the host may only stand in for unclaimed franchises.
+  // Same rule as bidding: only the manager of the franchise concerned may decide (timeouts apply the safe default for absent managers).
   if (actor) {
     const side = ["RTM_RAISE", "RTM_KEEP"].includes(action) ? bidder : rtmTeam;
-    if (side.ownerId && side.ownerId !== actor.id) throw new AuctionError(`${side.name} has a manager — this decision is theirs`, "FORBIDDEN");
-    if (!side.ownerId && !actor.isHost) throw new AuctionError("This decision belongs to another franchise", "FORBIDDEN");
+    if (!side.ownerId || side.ownerId !== actor.id) throw new AuctionError(`Only the manager of ${side.name} can make this decision`, "FORBIDDEN");
   }
   const final = r.rtmFinalAmount ?? r.currentBid;
   clearRtmTimer(r.id);

@@ -10,7 +10,7 @@ type Q = { id: string; name: string; role: string; basePrice: number; set: strin
 
 export function AuctioneerPanel({ a, isAdmin }: { a: A; isAdmin: boolean }) {
   const { push } = useToast(); const { code, access } = useRoom();
-  const [busy, setBusy] = useState<string | null>(null); const [amount, setAmount] = useState(""); const [queue, setQueue] = useState<Q[]>([]); const [pick, setPick] = useState("");
+  const [busy, setBusy] = useState<string | null>(null); const [queue, setQueue] = useState<Q[]>([]); const [pick, setPick] = useState("");
   const s = a.snap!;
   const loadQueue = () => fetch(roomApi(code, "/players/queue")).then((r) => r.json()).then((q) => Array.isArray(q) && setQueue(q)).catch(() => {});
   useEffect(() => { loadQueue(); }, [s.version]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -27,11 +27,10 @@ export function AuctioneerPanel({ a, isAdmin }: { a: A; isAdmin: boolean }) {
   );
   const st = s.state; const highest = s.teams.find((t) => t.id === s.highestTeamId);
   const canStart = ["LIVE", "SOLD", "UNSOLD"].includes(st);
-  async function bidFor(teamId: string) { const r = await a.placeBid(teamId, amount ? Number(amount) : undefined); if (r.ok) setAmount(""); }
   const p = s.currentPlayer;
   return (
     <div className="flex flex-col gap-4">
-      <RtmPanel a={a} canAct={(() => { const me = access?.userId; const rt = s.teams.find((t) => t.id === s.rtm?.teamId); const bd = s.teams.find((t) => t.id === s.rtm?.bidderTeamId); const r = !rt?.ownerId || rt.ownerId === me; const b = !bd?.ownerId || bd.ownerId === me; return r && b ? "both" : r ? "rtm" : b ? "bidder" : null; })()} />
+      <RtmPanel a={a} canAct={(() => { const me = access?.userId; const rt = s.teams.find((t) => t.id === s.rtm?.teamId); const bd = s.teams.find((t) => t.id === s.rtm?.bidderTeamId); const r = !!me && rt?.ownerId === me; const b = !!me && bd?.ownerId === me; return r && b ? "both" : r ? "rtm" : b ? "bidder" : null; })()} />
       <div className="card p-4">
         <div className="mb-3 flex items-center justify-between"><h3 className="display text-lg">Host Console</h3><span className="rounded bg-panel-2 px-2 py-0.5 text-xs font-bold">{st}</span></div>
         {st === "WAITING" && <div className="mb-3 grid gap-2 md:grid-cols-3">{btn("START_AUCTION", "▶ START AUCTION", true, "btn-green")}{btn("ORDER_BY_SET", "Order queue by set", true, "btn-ghost")}{btn("SHUFFLE", "🔀 Shuffle queue", true, "btn-ghost")}</div>}
@@ -54,27 +53,7 @@ export function AuctioneerPanel({ a, isAdmin }: { a: A; isAdmin: boolean }) {
           {isAdmin && btn("COMPLETE", "■ COMPLETE AUCTION", ["LIVE", "PAUSED", "SOLD", "UNSOLD"].includes(st), "btn-red", "Complete the auction? No further actions will be possible.")}
           {isAdmin && <button className="btn-ghost w-full text-live" disabled={!!busy} onClick={() => { if (!window.confirm("RESET the auction? All sales, bids, purses and RTM usage will be wiped.")) return; if (!window.confirm("Are you absolutely sure? This cannot be undone.")) return; act("RESET_AUCTION"); }}>⟲ RESET AUCTION</button>}
         </div>
-        <div className="mt-4 rounded-xl border border-line bg-panel-2/60 p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted">Bid for an unclaimed franchise {a.biddingOpen ? <span className="text-gold">— next: {money(a.nextBid)}</span> : <span>(bidding closed)</span>}</div>
-            <input className="input w-40 !py-1 text-sm" placeholder={`Custom lakhs (${a.nextBid})`} inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} />
-          </div>
-          <div className="grid grid-cols-5 gap-1.5 sm:gap-2 md:grid-cols-10">
-            {s.teams.map((t) => {
-              const amt = amount ? Number(amount) : a.nextBid;
-              const managed = !!t.ownerId && t.ownerId !== access?.userId;
-              const why = managed ? `👤 ${(t.ownerName ?? "manager").split(" ")[0]}` : t.squadCount >= t.maxSquad ? "FULL" : p?.overseas && t.overseasCount >= t.maxOverseas ? "✈ full" : amt > t.purse ? "No purse" : s.highestTeamId === t.id ? "Highest" : null;
-              const cant = !a.biddingOpen || !!why;
-              return (
-                <button key={t.id} disabled={cant} title={managed ? `${t.ownerName} manages ${t.name} — only they can bid` : undefined} onClick={() => bidFor(t.id)} className="flex flex-col items-center rounded-lg border px-1 py-2 font-bold transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-35" style={{ borderColor: t.color, background: s.highestTeamId === t.id ? `${t.color}22` : "transparent" }}>
-                  <span className="display text-base" style={{ color: t.color }}>{t.abbreviation}</span>
-                  <span className="text-[10px] text-muted">{why ?? money(t.purse)}</span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="mt-2 text-[11px] text-muted">Managers bid for their own franchise from the Live screen on their phones. Franchises with a manager (👤) are locked here — you can only stand in for unclaimed ones{access?.teamId ? ", and bid for your own franchise with the BID button above" : ""}.</div>
-        </div>
+        <div className="mt-4 rounded-xl border border-line bg-panel-2/60 p-3 text-[11px] text-muted">Only a franchise&apos;s manager can bid, from the Live screen on their phone{access?.teamId ? " — your own franchise has the BID button above" : ""}. Unclaimed franchises sit out; RTM is offered only to franchises that have a manager.</div>
         {st === "PLAYER_LIVE" && s.currentBid > 0 && <div className="mt-3 rounded-lg bg-gold/15 px-3 py-2 text-sm text-gold">Highest: {highest?.name} at {money(s.currentBid)}{s.autoSell ? " — sells automatically when the timer ends, or press SELL now." : " — SELL when the room settles."}{p?.rtmAvailable && <span className="ml-1 text-rtm-2">{p.previousTeamAbbr} can RTM.</span>}</div>}
       </div>
     </div>
