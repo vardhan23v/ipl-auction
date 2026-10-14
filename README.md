@@ -7,6 +7,21 @@ An open-source, self-hostable IPL franchise auction platform. Anyone signs in, *
 
 Built in the same stack and visual language as [hpl-auction](https://github.com/vardhan23v/hpl-auction); player pool from the open-source [Crick Auction](https://github.com/Shaurya01836/ipl-auction) dataset (Apache-2.0). Hosted on **Railway** (app + MySQL).
 
+[![Play it live](https://img.shields.io/badge/▶%20PLAY%20IT%20LIVE-ipl--web--production.up.railway.app-F5B82E?style=for-the-badge&logo=cricket&logoColor=black)](https://ipl-web-production.up.railway.app)
+
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
+[![React 19](https://img.shields.io/badge/React-19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Tailwind CSS 4](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![Prisma 6](https://img.shields.io/badge/Prisma-6-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io)
+[![MySQL](https://img.shields.io/badge/MySQL-8-4479A1?style=for-the-badge&logo=mysql&logoColor=white)](https://www.mysql.com)
+[![Socket.IO](https://img.shields.io/badge/Socket.IO-realtime-010101?style=for-the-badge&logo=socket.io&logoColor=white)](https://socket.io)
+[![Railway](https://img.shields.io/badge/Hosted_on-Railway-0B0D0E?style=for-the-badge&logo=railway&logoColor=white)](https://railway.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-F5B82E?style=for-the-badge)](LICENSE)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-00C853?style=for-the-badge&logo=github&logoColor=white)](https://github.com/vardhan23v/ipl-auction/pulls)
+
+Sign in with Google or as a guest, create a room, send the code to your friends and start bidding — no install needed.
+
 </div>
 
 ---
@@ -16,7 +31,8 @@ Built in the same stack and visual language as [hpl-auction](https://github.com/
 1. **Create a room** at `/rooms` (Google or guest sign-in). Pick purse, squad size, timer, RTM cards. You become the **host**.
 2. **Share the code** — friends open `/r/CODE` (or type the code on the home page) and land in the room lobby.
 3. **Claim franchises** — each manager picks one of the ten franchises; the host can kick/reassign.
-4. **Host runs the auction** from the host console: start, queue, timer, SELL / UNSOLD / UNDO, RTM decisions on behalf of absent owners. Managers bid for their own franchise from the Live screen (`/r/CODE/live`) on their phones. Spectators watch the same screen or the projector screen `/r/CODE/display`.
+4. **Host runs the auction** from the host console: start, queue, timer, SELL / UNSOLD / UNDO. The host never bids — **only a franchise's manager can bid, and only for their own team** (exactly like crickauction). Managers bid from the Live screen (`/r/CODE/live`) on their phones; unclaimed franchises simply sit out. Spectators watch the same screen or the projector screen `/r/CODE/display`.
+5. **The creator ends the auction** whenever they like — "End the auction" in the lobby, the live header or the host console. A lot still on the block is voided and the results become final.
 
 Rooms are independent — many groups can run auctions at once on one deployment. Public rooms are listed on the home page; private rooms are code-only.
 
@@ -33,7 +49,7 @@ Rooms are independent — many groups can run auctions at once on one deployment
 - **Transaction-safe sales** — SELL/MATCH run in one MySQL transaction with `SELECT … FOR UPDATE` row locks: squad entry, purse, overseas count, RTM card, player status, auction event — commit or roll back everything. **UNDO** reverses the last sale including the RTM card.
 - **Rooms & lobby (crickauction-style)** — Google or guest sign-in, create or join a room by code, then claim one of the ten franchises; the host can kick/reassign owners.
 - **Owner dashboard** — purse, squad, overseas, RTM cards, big BID button with ladder quick-bids and custom jump bids, RTM decision buttons when it's their call, their RTM-eligible list.
-- **Host console** — start player (queue or hand-picked), timer start/pause/reset, SELL / UNSOLD / SKIP / NEXT / UNDO, never bid — only a franchise's manager bids, and only for their own team, exactly like crickauction (unclaimed franchises sit out), order the queue by set.
+- **Host console** — start player (queue or hand-picked), timer start/pause/reset, SELL / UNSOLD / SKIP / NEXT / UNDO, order the queue by set, end the auction at any time. The host never bids: only a franchise's manager bids, and only for their own team, exactly like crickauction (unclaimed franchises sit out).
 - **Room management (host)** — franchises (names, colours, logos, RTM cards per team), players (CRUD, RTM list editing, assign/move, re-import the pool), drag-to-reorder queue, sold/unsold lists, bid & event log, settings, danger zone (reset / delete room).
 - **Platform admin** — `/admin` lists every room and user on the deployment.
 - **Room pages** — live room, projector **big screen**, player pool browser, squads, **RTM board**, history, analytics (Recharts), results with a **Franchise Strength** leaderboard — all under `/r/CODE/…`.
@@ -94,10 +110,10 @@ Browser ──HTTP──▶ Next.js 16 (App Router) ──┐
 
 ## ☁️ Deployment on Railway
 
-One service runs the app + WebSockets, alongside Railway **MySQL** on the private network. `railway.json` already holds the build/start commands and the `/api/health` check.
+One service runs the app + WebSockets, alongside Railway **MySQL** on the private network. `npm start` runs `prisma migrate deploy` before booting, so every deploy migrates the database itself; `/api/health` is the health check.
 
 1. Create a Railway project → add **MySQL**.
-2. Add a service from this GitHub repo. Variables:
+2. Add a service from this GitHub repo (or deploy from your machine with `railway up --service <service> --ci`). Variables:
 
 | Variable | Value |
 |---|---|
@@ -109,10 +125,10 @@ One service runs the app + WebSockets, alongside Railway **MySQL** on the privat
 | `SEED_PASSWORD` | optional, password for the seeded platform admin |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | optional, enables "Continue with Google" |
 
-3. First deploy runs `prisma migrate deploy`. Seed once from your machine or a Railway shell:
+3. Seed the platform admin once (idempotent):
 
 ```bash
-railway run npm run db:seed
+railway ssh --service <service> -- npm run db:seed
 ```
 
 Keep exactly **1 replica** — the live engine is a single-process design.
@@ -126,3 +142,11 @@ npm start            # production server
 npm run typecheck    # tsc --noEmit
 npm run db:seed      # idempotent: creates/updates the platform admin (SEED_ADMIN_EMAIL, SEED_PASSWORD)
 ```
+
+## 🤝 Contributing
+
+Issues and pull requests are welcome — the auction rules live in `src/server/auction-engine.ts`, the player pool in `prisma/data/players.json`, and every room-scoped page under `src/app/r/[code]/`. See `CLAUDE.md` for the conventions.
+
+## 📄 License
+
+[MIT](LICENSE) © 2026 Vallur Sree Vardhan. Player data from [Crick Auction](https://github.com/Shaurya01836/ipl-auction) (Apache-2.0).
