@@ -79,6 +79,7 @@ export function Lobby({ code, room, access, me, teams, members, initial }: { cod
               <div className="text-xs font-semibold uppercase tracking-widest text-gold">You&apos;re the host</div>
               <div className="mt-2 flex flex-col gap-2">
                 {room.state === "WAITING" ? <button className="btn-green" disabled={!!busy} onClick={() => control("START_AUCTION", `Start the auction with ${taken} of ${teams.length} franchises claimed?`)}>▶ Start the auction</button> : <Link href={`/r/${code}/host`} className="btn-red">Open host console</Link>}
+                {!["WAITING", "COMPLETED"].includes(room.state) && <button className="btn-ghost text-live" disabled={!!busy} onClick={() => control("COMPLETE", "End the auction now? Players still in the queue stay unsold and the results become final.")}>■ End the auction</button>}
                 <Link href={`/r/${code}/manage`} className="btn-ghost">Manage room (players, teams, settings)</Link>
                 <Link href={`/r/${code}/display`} className="btn-ghost">⛶ Big-screen view</Link>
               </div>
