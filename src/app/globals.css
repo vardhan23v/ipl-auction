@@ -18,19 +18,14 @@
 
 html { color-scheme: dark; }
 body {
-  background: radial-gradient(1200px 600px at 50% -10%, #1a2340 0%, #07090f 60%) fixed, var(--color-pitch);
+  background: radial-gradient(900px 420px at 50% -8%, #141c33 0%, #07090f 70%) fixed, var(--color-pitch);
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
-.stadium::before {
-  content: ""; position: absolute; inset: 0; pointer-events: none;
-  background:
-    radial-gradient(600px 300px at 15% 20%, rgba(245,184,46,.12), transparent 60%),
-    radial-gradient(600px 300px at 85% 10%, rgba(255,46,77,.10), transparent 60%),
-    repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0 1px, transparent 1px 48px);
-}
+/* Calm UI: decorative backgrounds and effects are switched off — only meaningful motion (bid bump, SOLD stamp) remains. */
+.stadium::before { content: none; }
 /* Component classes live in the components layer so Tailwind utilities (hidden, md:flex, px-3…) can override them. */
 @layer components {
 .glass { background: rgba(20,27,45,.6); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.07); }
@@ -56,7 +51,7 @@ body {
 /* Space reserved under page content for the fixed room tab bar (+ a dock on live screens) */
 .pb-tabbar { padding-bottom: calc(4.5rem + env(safe-area-inset-bottom)); }
 .pb-dock { padding-bottom: calc(10.5rem + env(safe-area-inset-bottom)); }
-@media (min-width: 768px) { .pb-tabbar, .pb-dock { padding-bottom: 1.5rem; } }
+@media (min-width: 768px) { .pb-tabbar { padding-bottom: 1.5rem; } .pb-dock { padding-bottom: 9rem; } }
 @keyframes sheet-up { from { transform: translateY(100%) } to { transform: none } }
 .sheet-up { animation: sheet-up .22s cubic-bezier(.2,.9,.3,1) both; }
 @keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
@@ -138,3 +133,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
 @media (hover: none) { .team-row:hover { transform: none; box-shadow: none; } }
 .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
 .scroll-x::-webkit-scrollbar { display: none; }
+
+/* ---- calm mode: neutralise decorative effects everywhere ---- */
+.orb, .ember { display: none !important; }
+.sheen::after, .bar-anim::after { content: none !important; display: none !important; }
+.ring, .floaty, .bid-glow { animation: none !important; }
+.gold-text { background: none; -webkit-background-clip: initial; background-clip: initial; color: var(--color-gold); animation: none; }
+.rtm-text { background: none; -webkit-background-clip: initial; background-clip: initial; color: var(--color-rtm-2); animation: none; }
+.team-row:hover { transform: none; box-shadow: none; }
+.reveal { animation: fade-in .18s ease-out both; }
+.card { box-shadow: 0 1px 0 rgba(255,255,255,.03) inset; }

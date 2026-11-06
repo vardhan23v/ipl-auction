@@ -31,6 +31,9 @@ export interface AuctionSnapshot {
   rtmTimerSeconds: number;
   bidIncrement: number;
   autoSell: boolean;
+  /** SOLD/UNSOLD: when the next player comes up automatically (ms epoch). */
+  nextPlayerAt: number | null;
+  nextPlayerGapSeconds: number;
   rtm: RtmSnapshot | null;
   teams: TeamSnapshot[];
   bids: BidSnapshot[];
@@ -52,11 +55,7 @@ export const SOCKET_EVENTS = [
 ] as const;
 export type SocketEvent = typeof SOCKET_EVENTS[number];
 
-export const CONTROL_ACTIONS = [
-  "START_AUCTION", "PAUSE", "RESUME", "COMPLETE", "RESET_AUCTION",
-  "START_PLAYER", "START_TIMER", "PAUSE_TIMER", "RESET_TIMER",
-  "UNSOLD", "SKIP", "NEXT", "UNDO", "REQUEUE", "SHUFFLE", "ORDER_BY_SET",
-] as const;
+export const CONTROL_ACTIONS = ["START_AUCTION", "PAUSE", "RESUME", "UNDO", "COMPLETE", "RESET_AUCTION", "SHUFFLE", "ORDER_BY_SET"] as const;
 export type ControlAction = typeof CONTROL_ACTIONS[number];
 
 export const RTM_ACTIONS = ["RTM_USE", "RTM_PASS", "RTM_RAISE", "RTM_KEEP", "RTM_MATCH", "RTM_DECLINE"] as const;

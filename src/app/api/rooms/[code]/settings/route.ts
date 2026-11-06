@@ -18,6 +18,7 @@ const schema = z.object({
   rtmEnabled: z.boolean().optional(),
   defaultRtmCards: z.coerce.number().int().min(0).max(10).optional(),
   unsoldReentry: z.boolean().optional(),
+  nextPlayerGapSeconds: z.coerce.number().int().min(2).max(15).optional(),
 });
 type P = { params: Promise<{ code: string }> };
 export async function GET(_: Request, { params }: P) {

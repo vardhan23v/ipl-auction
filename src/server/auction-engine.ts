@@ -3,11 +3,11 @@
  * Every mutation goes through here; the Room row is the single source of truth for that auction.
  * A per-room mutex serialises mutations so concurrent bids / RTM decisions can't race.
  *
+ * The auction runs itself; the host only starts, pauses/resumes, undoes and ends it.
  * State machine:
- *   WAITING → LIVE ⇄ PAUSED
- *   LIVE → PLAYER_LIVE → (SELL) → SOLD | RTM_OFFER → RTM_RAISE → RTM_MATCH → SOLD
- *   PLAYER_LIVE → UNSOLD | (SKIP) LIVE
- *   SOLD/UNSOLD → (NEXT) LIVE → … → COMPLETED
+ *   WAITING → (start) PLAYER_LIVE ⇄ PAUSED
+ *   PLAYER_LIVE → (clock ends) SOLD | RTM_OFFER → RTM_RAISE → RTM_MATCH → SOLD,  or UNSOLD when nobody bid
+ *   SOLD/UNSOLD → (after nextPlayerGapSeconds) next PLAYER_LIVE … → COMPLETED when the queue is empty
  */
 import { Prisma, AuctionState } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -21,8 +21,9 @@ export class AuctionError extends Error {
 type Emitter = (roomId: string, event: SocketEvent, payload: unknown) => void;
 type Db = Prisma.TransactionClient | typeof prisma;
 /** Next.js bundles this module separately for API routes from the copy loaded by the custom server, so shared state lives on globalThis. */
-const G = globalThis as unknown as { __ipl?: { emit: Emitter; chains: Map<string, Promise<unknown>>; timers: Map<string, NodeJS.Timeout>; rtmTimers: Map<string, NodeJS.Timeout> } };
+const G = globalThis as unknown as { __ipl?: { emit: Emitter; chains: Map<string, Promise<unknown>>; timers: Map<string, NodeJS.Timeout>; rtmTimers: Map<string, NodeJS.Timeout>; nextTimers?: Map<string, NodeJS.Timeout> } };
 G.__ipl ??= { emit: () => {}, chains: new Map(), timers: new Map(), rtmTimers: new Map() };
+G.__ipl.nextTimers ??= new Map();
 const shared = G.__ipl;
 const emit: Emitter = (r, e, p) => shared.emit(r, e, p);
 export function setEmitter(fn: Emitter) { shared.emit = fn; }
@@ -41,7 +42,7 @@ type RoomRow = Awaited<ReturnType<typeof getRoom>>;
 
 const CLEAR_RTM = { rtmTeamId: null, rtmBidderTeamId: null, rtmFinalAmount: null, rtmDeadlineAt: null };
 const CLEAR_TIMER = { timerRunning: false, timerEndsAt: null, timerRemainingMs: null };
-const CLEAR_PLAYER = { currentPlayerId: null, currentBid: 0, highestTeamId: null, highestBidId: null, ...CLEAR_TIMER, ...CLEAR_RTM };
+const CLEAR_PLAYER = { currentPlayerId: null, currentBid: 0, highestTeamId: null, highestBidId: null, nextPlayerAt: null, ...CLEAR_TIMER, ...CLEAR_RTM };
 /** Spread into room updates. A getter so `lastActiveAt` is the time of the write, not of module load. */
 const touch = { get lastActiveAt() { return new Date(); }, version: { increment: 1 } as const };
 
@@ -54,6 +55,48 @@ function clearRtmTimer(roomId: string) { const t = shared.rtmTimers.get(roomId);
 function scheduleRtmDeadline(roomId: string, at: Date) {
   clearRtmTimer(roomId);
   shared.rtmTimers.set(roomId, setTimeout(() => { onRtmDeadline(roomId).catch(console.error); }, Math.max(0, at.getTime() - Date.now()) + 20));
+}
+
+function clearNext(roomId: string) { const t = shared.nextTimers!.get(roomId); if (t) clearTimeout(t); shared.nextTimers!.delete(roomId); }
+function scheduleNext(roomId: string, at: Date) {
+  clearNext(roomId);
+  shared.nextTimers!.set(roomId, setTimeout(() => { onNextDue(roomId).catch(console.error); }, Math.max(0, at.getTime() - Date.now()) + 20));
+}
+/** After SOLD/UNSOLD, show the result for a few seconds, then bring up the next player automatically. */
+async function armNextUnlocked(roomId: string) {
+  const r = await getRoom(roomId);
+  const at = new Date(Date.now() + Math.max(1, r.nextPlayerGapSeconds) * 1000);
+  await prisma.room.update({ where: { id: roomId }, data: { nextPlayerAt: at } });
+  scheduleNext(roomId, at);
+}
+async function onNextDue(roomId: string) {
+  await withLock(roomId, async () => {
+    const r = await getRoom(roomId);
+    if ((r.state !== "SOLD" && r.state !== "UNSOLD") || !r.nextPlayerAt) return;
+    if (r.nextPlayerAt.getTime() > Date.now()) { scheduleNext(roomId, r.nextPlayerAt); return; }
+    await advanceUnlocked(roomId);
+  });
+}
+/** Bring up the next queued player. When the queue runs out, unsold players get one more round (if enabled); then the auction completes. */
+async function advanceUnlocked(roomId: string) {
+  clearNext(roomId);
+  let next = await pickNextPlayerId(roomId);
+  if (!next) {
+    const r = await getRoom(roomId);
+    const alreadyReentered = await prisma.auctionEvent.count({ where: { roomId, type: "UNSOLD_REENTRY" } });
+    if (r.unsoldReentry && !alreadyReentered) {
+      const back = await prisma.player.updateMany({ where: { roomId, status: "UNSOLD" }, data: { status: "WAITING" } });
+      if (back.count) { await log(roomId, "UNSOLD_REENTRY", { payload: { count: back.count } }); next = await pickNextPlayerId(roomId); }
+    }
+  }
+  if (!next) {
+    clearTimer(roomId); clearRtmTimer(roomId);
+    await prisma.room.update({ where: { id: roomId }, data: { state: "COMPLETED", completedAt: new Date(), ...CLEAR_PLAYER, ...touch } });
+    await log(roomId, "AUCTION_COMPLETED", { payload: { reason: "queue empty" } });
+    await broadcast(roomId, "auction:completed");
+    return;
+  }
+  await startPlayerUnlocked(await getRoom(roomId), next);
 }
 
 async function onTimerExpired(roomId: string) {
@@ -81,8 +124,9 @@ async function onRtmDeadline(roomId: string) {
 
 /** Re-arm timers for every room after a server restart. */
 export async function resumeTimersOnBoot() {
-  const rooms = await prisma.room.findMany({ where: { OR: [{ timerRunning: true }, { rtmDeadlineAt: { not: null } }] }, select: { id: true, state: true, timerRunning: true, timerEndsAt: true, rtmDeadlineAt: true } });
+  const rooms = await prisma.room.findMany({ where: { OR: [{ timerRunning: true }, { rtmDeadlineAt: { not: null } }, { nextPlayerAt: { not: null } }] }, select: { id: true, state: true, timerRunning: true, timerEndsAt: true, rtmDeadlineAt: true, nextPlayerAt: true } });
   for (const r of rooms) {
+    if ((r.state === "SOLD" || r.state === "UNSOLD") && r.nextPlayerAt) scheduleNext(r.id, r.nextPlayerAt);
     if (r.state === "PLAYER_LIVE" && r.timerRunning && r.timerEndsAt) scheduleTimerEnd(r.id, r.timerEndsAt);
     if (["RTM_OFFER", "RTM_RAISE", "RTM_MATCH"].includes(r.state) && r.rtmDeadlineAt) scheduleRtmDeadline(r.id, r.rtmDeadlineAt);
   }
@@ -139,6 +183,8 @@ export async function getSnapshot(roomId: string): Promise<AuctionSnapshot> {
     rtmTimerSeconds: r.rtmTimerSeconds,
     bidIncrement: r.bidIncrement,
     autoSell: r.autoSell,
+    nextPlayerAt: r.nextPlayerAt?.getTime() ?? null,
+    nextPlayerGapSeconds: r.nextPlayerGapSeconds,
     rtm: rtmTeam && bidder ? {
       teamId: rtmTeam.id, teamName: rtmTeam.name, teamAbbr: rtmTeam.abbreviation, teamColor: rtmTeam.color,
       bidderTeamId: bidder.id, bidderTeamName: bidder.name, bidderTeamAbbr: bidder.abbreviation, bidderTeamColor: bidder.color,
@@ -223,14 +269,15 @@ export const startAuction = (roomId: string) => withLock(roomId, async () => {
   ]);
   await log(roomId, "AUCTION_STARTED");
   await broadcast(roomId, "auction:started");
+  await advanceUnlocked(roomId); // first player comes straight up — there is no NEXT button
 });
 
 export const pauseAuction = (roomId: string) => withLock(roomId, async () => {
   const r = await getRoom(roomId);
-  assertState(r.state, ["LIVE", "PLAYER_LIVE"], "pause");
+  assertState(r.state, ["LIVE", "PLAYER_LIVE", "SOLD", "UNSOLD"], "pause");
   const remaining = r.timerRunning && r.timerEndsAt ? Math.max(0, r.timerEndsAt.getTime() - Date.now()) : r.timerRemainingMs;
-  clearTimer(roomId);
-  await prisma.room.update({ where: { id: roomId }, data: { state: "PAUSED", timerRunning: false, timerRemainingMs: remaining, timerEndsAt: null, ...touch } });
+  clearTimer(roomId); clearNext(roomId);
+  await prisma.room.update({ where: { id: roomId }, data: { state: "PAUSED", timerRunning: false, timerRemainingMs: remaining, timerEndsAt: null, nextPlayerAt: null, ...touch } });
   await log(roomId, "AUCTION_PAUSED", { payload: { previousState: r.state } });
   await broadcast(roomId, "auction:paused");
 });
@@ -238,9 +285,20 @@ export const pauseAuction = (roomId: string) => withLock(roomId, async () => {
 export const resumeAuction = (roomId: string) => withLock(roomId, async () => {
   const r = await getRoom(roomId);
   assertState(r.state, ["PAUSED"], "resume");
-  await prisma.room.update({ where: { id: roomId }, data: { state: r.currentPlayerId ? "PLAYER_LIVE" : "LIVE", ...touch } });
+  const cur = r.currentPlayerId ? await prisma.player.findUnique({ where: { id: r.currentPlayerId }, select: { status: true } }) : null;
   await log(roomId, "AUCTION_RESUMED");
-  await broadcast(roomId, "auction:resumed");
+  if (cur?.status === "LIVE") {
+    // Paused mid-bidding: continue the clock where it stopped (at least 5 s so nobody is caught out).
+    const ms = Math.max(5000, r.timerRemainingMs ?? r.timerSeconds * 1000);
+    const endsAt = new Date(Date.now() + ms);
+    await prisma.room.update({ where: { id: roomId }, data: { state: "PLAYER_LIVE", timerEndsAt: endsAt, timerRunning: true, timerRemainingMs: null, ...touch } });
+    scheduleTimerEnd(roomId, endsAt);
+    await broadcast(roomId, "auction:resumed");
+  } else {
+    // Paused between players (or before the first): bring up the next one.
+    await prisma.room.update({ where: { id: roomId }, data: { state: "LIVE", ...CLEAR_PLAYER, ...touch } });
+    await advanceUnlocked(roomId);
+  }
 });
 
 /** The room creator can end the auction at ANY point. A lot still on the block (bidding or RTM) is voided: its bids are discarded and the player goes back to the pool unsold. */
@@ -248,7 +306,7 @@ export const completeAuction = (roomId: string) => withLock(roomId, async () => 
   const r = await getRoom(roomId);
   if (r.state === "COMPLETED") throw new AuctionError("Auction is already completed", "COMPLETED");
   if (r.state === "WAITING") throw new AuctionError("Auction has not started", "NOT_STARTED");
-  clearTimer(roomId); clearRtmTimer(roomId);
+  clearTimer(roomId); clearRtmTimer(roomId); clearNext(roomId);
   const voided = r.currentPlayerId && (r.state === "PLAYER_LIVE" || r.state.startsWith("RTM")) ? r.currentPlayerId : null;
   await prisma.$transaction([
     ...(voided ? [prisma.bid.deleteMany({ where: { playerId: voided } }), prisma.player.update({ where: { id: voided }, data: { status: "POOL" } })] : []),
@@ -260,7 +318,7 @@ export const completeAuction = (roomId: string) => withLock(roomId, async () => 
 
 /** Host reset back to WAITING (keeps players/teams/members, wipes sales, bids and RTM usage). */
 export const resetAuction = (roomId: string) => withLock(roomId, async () => {
-  clearTimer(roomId); clearRtmTimer(roomId);
+  clearTimer(roomId); clearRtmTimer(roomId); clearNext(roomId);
   await prisma.$transaction(async (tx) => {
     await tx.squadPlayer.deleteMany({ where: { roomId } });
     await tx.bid.deleteMany({ where: { roomId } });
@@ -280,8 +338,8 @@ async function pickNextPlayerId(roomId: string): Promise<string | null> {
 }
 
 async function startPlayerUnlocked(r: RoomRow, id: string) {
-  const endsAt = r.autoTimer ? new Date(Date.now() + r.timerSeconds * 1000) : null;
-  clearTimer(r.id);
+  const endsAt = new Date(Date.now() + r.timerSeconds * 1000); // the clock always runs — selling is automatic
+  clearTimer(r.id); clearNext(r.id);
   await prisma.$transaction([
     prisma.player.update({ where: { id }, data: { status: "LIVE" } }),
     prisma.room.update({ where: { id: r.id }, data: { state: "PLAYER_LIVE", ...CLEAR_PLAYER, currentPlayerId: id, timerEndsAt: endsAt, timerRunning: !!endsAt, ...touch } }),
@@ -400,6 +458,7 @@ async function finalizeSaleUnlocked(r: RoomRow, teamId: string, amount: number, 
     await tx.room.update({ where: { id: r.id }, data: { state: "SOLD", currentBid: amount, highestTeamId: team.id, ...CLEAR_TIMER, ...CLEAR_RTM, ...touch } });
     return { eventId: ev.id, playerName: player.name, teamName: t.name, teamAbbr: t.abbreviation, teamColor: t.color, amount, teamId: team.id, playerId: player.id, viaRtm };
   });
+  await armNextUnlocked(r.id);
   await broadcast(r.id, "player:sold", result);
   emit(r.id, "team:squadUpdated", { teamId: result.teamId });
   return result;
@@ -499,6 +558,7 @@ async function markUnsoldUnlocked(r: RoomRow) {
     prisma.room.update({ where: { id: r.id }, data: { state: "UNSOLD", ...CLEAR_TIMER, ...touch } }),
     prisma.auctionEvent.create({ data: { roomId: r.id, type: "PLAYER_UNSOLD", playerId: p.id } }),
   ]);
+  await armNextUnlocked(r.id);
   await broadcast(r.id, "player:unsold", { playerName: p.name, basePrice: p.basePrice, playerId: p.id });
 }
 export const markUnsold = (roomId: string) => withLock(roomId, async () => markUnsoldUnlocked(await getRoom(roomId)));
@@ -530,11 +590,12 @@ export const nextPlayer = (roomId: string, autoStart = true) => withLock(roomId,
 /** Undo the most recent SOLD/UNSOLD/SKIPPED and put that player back on the block. */
 export const undoLast = (roomId: string) => withLock(roomId, async () => {
   const r = await getRoom(roomId);
-  assertState(r.state, ["SOLD", "UNSOLD", "LIVE", "PLAYER_LIVE"], "undo");
+  assertState(r.state, ["SOLD", "UNSOLD", "LIVE", "PLAYER_LIVE", "PAUSED"], "undo");
   const ev = await prisma.auctionEvent.findFirst({ where: { roomId, undone: false, type: { in: ["PLAYER_SOLD", "PLAYER_UNSOLD", "PLAYER_SKIPPED"] } }, orderBy: { createdAt: "desc" } });
   if (!ev || !ev.playerId) throw new AuctionError("Nothing to undo", "NOTHING");
   if (r.state === "PLAYER_LIVE" && r.currentBid > 0) throw new AuctionError("Finish or skip the current player before undoing", "BUSY");
-  clearTimer(roomId); clearRtmTimer(roomId);
+  clearTimer(roomId); clearRtmTimer(roomId); clearNext(roomId);
+  const endsAt = new Date(Date.now() + r.timerSeconds * 1000);
   const payload = (ev.payload ?? {}) as { viaRtm?: boolean; overseas?: boolean };
   await prisma.$transaction(async (tx) => {
     if (r.currentPlayerId && r.currentPlayerId !== ev.playerId) {
@@ -549,10 +610,11 @@ export const undoLast = (roomId: string) => withLock(roomId, async () => {
     }
     await tx.player.update({ where: { id: ev.playerId! }, data: { status: "LIVE", soldPrice: null, soldToId: null, soldAt: null } });
     const lastBid = await tx.bid.findFirst({ where: { playerId: ev.playerId!, kind: "BID" }, orderBy: { amount: "desc" } });
-    await tx.room.update({ where: { id: roomId }, data: { state: "PLAYER_LIVE", ...CLEAR_PLAYER, currentPlayerId: ev.playerId, currentBid: lastBid?.amount ?? 0, highestTeamId: lastBid?.teamId ?? null, highestBidId: lastBid?.id ?? null, ...touch } });
+    await tx.room.update({ where: { id: roomId }, data: { state: "PLAYER_LIVE", ...CLEAR_PLAYER, currentPlayerId: ev.playerId, currentBid: lastBid?.amount ?? 0, highestTeamId: lastBid?.teamId ?? null, highestBidId: lastBid?.id ?? null, timerEndsAt: endsAt, timerRunning: true, ...touch } });
     await tx.auctionEvent.update({ where: { id: ev.id }, data: { undone: true } });
     await tx.auctionEvent.create({ data: { roomId, type: "UNDO", playerId: ev.playerId, teamId: ev.teamId, amount: ev.amount, payload: { undoneEventId: ev.id, undoneType: ev.type } } });
   });
+  scheduleTimerEnd(roomId, endsAt);
   await broadcast(roomId, "auction:undo", { undone: ev.type, playerId: ev.playerId });
 });
 

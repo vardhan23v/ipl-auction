@@ -1,7 +1,7 @@
 # IPL Mega Auction — notes for agents
 
 - Branches: `main` = Railway build (MySQL + Socket.IO + NextAuth, custom `server.ts`). `supabase` = Supabase + Vercel build (serverless; Vercel production deploys from it). UI/pool/rules changes usually belong on both — port them across.
-- No manual SELL: the clock ending sells to the highest bidder (after RTM) or marks unsold (`onTimerExpired` in the engine).
+- The auction runs itself: `startAuction` brings up the first player; the clock ending sells (after RTM) or marks unsold; after `nextPlayerGapSeconds` (`nextPlayerAt` + in-memory timer, re-armed on boot) the next player comes up; empty queue → unsold re-entry once → COMPLETED. Host powers are only START_AUCTION / PAUSE / RESUME / UNDO / COMPLETE (plus SHUFFLE / ORDER_BY_SET / RESET_AUCTION before the start). Hosts configure everything on `/r/CODE/setup`.
 
 - Stack mirrors `vardhan23v/hpl-auction`: Next.js 16 App Router + TS + Tailwind 4, Prisma 6 + MySQL, Socket.IO on a custom `server.ts`, NextAuth JWT. Dark "stadium" theme in `src/app/globals.css` (gold money, red live, purple RTM). Mobile-first: every page must work at 375px.
 - **Multi-room (open-source, crickauction-style):** anyone signs in (Google or guest) and creates a *room* (`Room`, 6-char `code`). Each room has its own 10 franchises, 547-player IPL 2026 pool (`prisma/data/players.json`, validate with `npx tsx scripts/check-pool.ts`), settings and live state. Room URLs: `/r/CODE` (lobby), `/r/CODE/live|display|owner|host|players|squads|rtm|history|analytics|results|manage/*`. Room APIs live under `src/app/api/rooms/[code]/...`; `roomGuard(code, "host"|"member"|"any")` in `src/lib/api.ts`; `loadRoomPage()` in `src/lib/room-page.ts` for pages.
