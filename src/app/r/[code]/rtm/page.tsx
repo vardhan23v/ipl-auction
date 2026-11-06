@@ -12,9 +12,9 @@ export default async function RtmBoard({ params }: { params: Promise<{ code: str
   const matched = teams.reduce((n, t) => n + t.formerPlayers.filter((p) => p.squadEntry?.viaRtm).length, 0);
   return (
     <RoomShell room={room} access={access}>
-      <main className="mx-auto max-w-7xl px-4 py-6 md:py-8">
+      <main className="mx-auto max-w-7xl px-3 py-4 md:px-4 md:py-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div><div className="text-xs font-semibold uppercase tracking-widest text-rtm-2">Right to match</div><h1 className="display text-4xl md:text-5xl">RTM Board</h1></div>
+          <div><div className="text-xs font-semibold uppercase tracking-widest text-rtm-2">Right to match</div><h1 className="display text-3xl md:text-5xl">RTM Board</h1></div>
           <div className="text-sm text-muted">{teams.reduce((n, t) => n + t.rtmTotal - t.rtmUsed, 0)} cards left · {matched} matched so far</div>
         </div>
         <p className="mt-3 max-w-3xl text-sm text-muted">Each franchise may use a Right-To-Match card <b className="text-ink">only on the players in its fixed list below</b> (its squad last season). When one of them is about to be sold elsewhere, the franchise can match the final price and keep them.</p>
@@ -27,7 +27,7 @@ export default async function RtmBoard({ params }: { params: Promise<{ code: str
                 <div className="mt-3 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-2">
                   {t.formerPlayers.map((p) => (
                     <div key={p.id} className="flex items-center justify-between border-b border-line/40 py-1">
-                      <span className="flex min-w-0 items-center gap-1.5"><span className="truncate">{p.name}</span><span className="text-[10px] text-muted">{ROLE_SHORT[p.role]}{p.overseas ? " ✈" : ""}</span></span>
+                      <span className="flex min-w-0 items-center gap-1.5"><span className="truncate">{p.name}</span><span className="text-xs text-muted">{ROLE_SHORT[p.role]}{p.overseas ? " ✈" : ""}</span></span>
                       <span className="shrink-0 text-xs">{p.status === "SOLD" ? (p.soldToId === t.id ? <span className={p.squadEntry?.viaRtm ? "font-bold text-rtm-2" : "text-emerald-400"}>{p.squadEntry?.viaRtm ? "MATCHED" : "Bought"} {money(p.soldPrice)}</span> : <span style={{ color: p.soldTo?.color }}>→ {p.soldTo?.abbreviation} {money(p.soldPrice)}</span>) : p.status === "LIVE" ? <span className="text-live">LIVE</span> : p.status === "UNSOLD" ? <span className="text-muted">unsold</span> : <span className="text-muted">{money(p.basePrice)}</span>}</span>
                     </div>
                   ))}

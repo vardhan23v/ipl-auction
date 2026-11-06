@@ -14,6 +14,22 @@ export const googleEnabled = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOG
  * Sign-in like crickauction.in: "Continue with Google" or "Join as guest" (just a name).
  * Roles inside an auction (host / owner / spectator) are per room; the platform role is only ADMIN or USER.
  */
+/**
+ * The jwt callback runs on every page and API request. Cache the user row for a short time instead of hitting MySQL each time;
+ * role/name changes still show up within 30 s. `fresh` bypasses the cache right after sign-in.
+ */
+type CachedUser = { role: Role; name: string; image: string | null; isGuest: boolean } | null;
+const G = globalThis as unknown as { __iplUserCache?: Map<string, { u: CachedUser; at: number }> };
+const userCache = (G.__iplUserCache ??= new Map());
+async function cachedUser(id: string, fresh: boolean): Promise<CachedUser> {
+  const hit = userCache.get(id);
+  if (!fresh && hit && Date.now() - hit.at < 30_000) return hit.u;
+  const u = await prisma.user.findUnique({ where: { id }, select: { role: true, name: true, image: true, isGuest: true } });
+  if (userCache.size > 5000) userCache.clear();
+  userCache.set(id, { u, at: Date.now() });
+  return u;
+}
+
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 14 },
   secret: process.env.NEXTAUTH_SECRET,
@@ -58,7 +74,7 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) { token.uid = user.id; token.role = (user as { role: Role }).role; token.isGuest = !!(user as { isGuest?: boolean }).isGuest; }
       if (token.uid) {
-        const u = await prisma.user.findUnique({ where: { id: token.uid as string }, select: { role: true, name: true, image: true, isGuest: true } });
+        const u = await cachedUser(token.uid as string, !!user);
         if (u) { token.role = u.role; token.name = u.name; token.picture = u.image ?? token.picture; token.isGuest = u.isGuest; } else { delete token.uid; }
       }
       return token;

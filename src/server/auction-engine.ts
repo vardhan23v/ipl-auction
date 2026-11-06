@@ -42,7 +42,8 @@ type RoomRow = Awaited<ReturnType<typeof getRoom>>;
 const CLEAR_RTM = { rtmTeamId: null, rtmBidderTeamId: null, rtmFinalAmount: null, rtmDeadlineAt: null };
 const CLEAR_TIMER = { timerRunning: false, timerEndsAt: null, timerRemainingMs: null };
 const CLEAR_PLAYER = { currentPlayerId: null, currentBid: 0, highestTeamId: null, highestBidId: null, ...CLEAR_TIMER, ...CLEAR_RTM };
-const touch = { lastActiveAt: new Date(), version: { increment: 1 } };
+/** Spread into room updates. A getter so `lastActiveAt` is the time of the write, not of module load. */
+const touch = { get lastActiveAt() { return new Date(); }, version: { increment: 1 } as const };
 
 function clearTimer(roomId: string) { const t = shared.timers.get(roomId); if (t) clearTimeout(t); shared.timers.delete(roomId); }
 function scheduleTimerEnd(roomId: string, endsAt: Date) {
@@ -61,12 +62,9 @@ async function onTimerExpired(roomId: string) {
     if (r.state !== "PLAYER_LIVE" || !r.timerRunning || !r.timerEndsAt) return;
     if (r.timerEndsAt.getTime() > Date.now()) { scheduleTimerEnd(roomId, r.timerEndsAt); return; }
     await prisma.room.update({ where: { id: roomId }, data: { timerRunning: false, timerRemainingMs: 0, ...touch } });
-    if (r.autoSell) {
-      const fresh = await getRoom(roomId);
-      if (fresh.currentBid > 0) await resolveSaleUnlocked(fresh); else await markUnsoldUnlocked(fresh);
-    } else {
-      await broadcast(roomId, "timer:updated", { expired: true });
-    }
+    // The hammer falls when the clock ends: highest bidder wins (after any RTM window); no bids = unsold. There is no manual SELL.
+    const fresh = await getRoom(roomId);
+    if (fresh.currentBid > 0) await resolveSaleUnlocked(fresh); else await markUnsoldUnlocked(fresh);
   });
 }
 
@@ -107,16 +105,16 @@ function canRtm(team: TeamRow | null | undefined, player: PlayerRow, amount: num
 
 // ---- snapshot -------------------------------------------------------------
 export async function getSnapshot(roomId: string): Promise<AuctionSnapshot> {
-  const [r, teams, counts, host, memberCount] = await Promise.all([
-    getRoom(roomId),
+  const r = await prisma.room.findUniqueOrThrow({ where: { id: roomId }, include: { host: { select: { name: true } } } });
+  const [teams, counts, memberCount, p, bids] = await Promise.all([
     prisma.team.findMany({ where: { roomId }, orderBy: { sortOrder: "asc" } }),
     prisma.player.groupBy({ by: ["status"], where: { roomId }, _count: { _all: true } }),
-    prisma.room.findUnique({ where: { id: roomId }, select: { host: { select: { name: true } } } }),
     prisma.roomMember.count({ where: { roomId } }),
+    r.currentPlayerId ? prisma.player.findUnique({ where: { id: r.currentPlayerId } }) : null,
+    r.currentPlayerId ? prisma.bid.findMany({ where: { playerId: r.currentPlayerId }, include: { team: { select: { name: true, abbreviation: true, color: true } } }, orderBy: { createdAt: "desc" }, take: 60 }) : [],
   ]);
+  const host = r;
   const c = (st: string) => counts.find((x) => x.status === st)?._count._all ?? 0;
-  const p = r.currentPlayerId ? await prisma.player.findUnique({ where: { id: r.currentPlayerId } }) : null;
-  const bids = r.currentPlayerId ? await prisma.bid.findMany({ where: { playerId: r.currentPlayerId }, include: { team: true }, orderBy: { createdAt: "desc" }, take: 60 }) : [];
   const byId = (id: string | null) => (id ? teams.find((t) => t.id === id) ?? null : null);
   const highest = byId(r.highestTeamId); const prev = p ? byId(p.previousTeamId) : null;
   const rtmTeam = byId(r.rtmTeamId), bidder = byId(r.rtmBidderTeamId);
@@ -176,10 +174,27 @@ function assertState(state: AuctionState, allowed: AuctionState[], what: string)
 }
 
 // ---- auction lifecycle ----------------------------------------------------
+/** Write a whole queue order in a few statements (one CASE update per 500 rows) instead of one UPDATE per player. */
+async function writeQueueOrder(ids: string[], db: Db = prisma) {
+  for (let off = 0; off < ids.length; off += 500) {
+    const chunk = ids.slice(off, off + 500);
+    const cases = Prisma.join(chunk.map((id, i) => Prisma.sql`WHEN ${id} THEN ${off + i + 1}`), " ");
+    await db.$executeRaw`UPDATE Player SET queueOrder = CASE id ${cases} END WHERE id IN (${Prisma.join(chunk)})`;
+  }
+}
+/** Sort key for set names: Marquee first, then capped "Set N", then uncapped sets, then anything else. */
+export function setRank(set: string) {
+  const n = Number(set.match(/(\d+)\s*$/)?.[1] ?? 0);
+  if (/marquee/i.test(set)) return n;
+  if (/uncapped/i.test(set)) return 200 + n;
+  const m = set.match(/^Set\s+(\d+)/i);
+  if (m) return 10 + Number(m[1]);
+  return 100 + n;
+}
 async function shuffleWaitingQueue(roomId: string, db: Db = prisma) {
   const pool = await db.player.findMany({ where: { roomId, status: { in: ["POOL", "WAITING"] } }, select: { id: true } });
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-  for (const [i, p] of pool.entries()) await db.player.update({ where: { id: p.id }, data: { queueOrder: i + 1 } });
+  await writeQueueOrder(pool.map((p) => p.id), db);
   return pool.length;
 }
 export const shuffleQueue = (roomId: string) => withLock(roomId, async () => {
@@ -192,9 +207,8 @@ export const shuffleQueue = (roomId: string) => withLock(roomId, async () => {
 /** Order the queue by set (Marquee first) — the way the real auction runs. */
 export const orderQueueBySet = (roomId: string) => withLock(roomId, async () => {
   const pool = await prisma.player.findMany({ where: { roomId, status: { in: ["POOL", "WAITING"] } }, select: { id: true, set: true, basePrice: true, rating: true } });
-  const rank = (s: string) => (/marquee/i.test(s) ? 0 : /^Set (\d)/.test(s) ? Number(s.match(/^Set (\d)/)![1]) : /uncapped/i.test(s) ? 20 : 10);
-  pool.sort((x, y) => rank(x.set) - rank(y.set) || x.set.localeCompare(y.set) || y.basePrice - x.basePrice || (y.rating ?? 0) - (x.rating ?? 0));
-  for (const [i, p] of pool.entries()) await prisma.player.update({ where: { id: p.id }, data: { queueOrder: i + 1 } });
+  pool.sort((x, y) => setRank(x.set) - setRank(y.set) || x.set.localeCompare(y.set) || y.basePrice - x.basePrice || (y.rating ?? 0) - (x.rating ?? 0));
+  await writeQueueOrder(pool.map((p) => p.id));
   await log(roomId, "QUEUE_ORDERED_BY_SET", { payload: { count: pool.length } });
   await broadcast(roomId, "state:sync");
   return pool.length;
@@ -324,7 +338,7 @@ export const pauseTimer = (roomId: string) => withLock(roomId, async () => {
 // ---- bidding --------------------------------------------------------------
 export interface BidInput { roomId: string; userId: string; teamId: string; amount?: number }
 
-export const placeBid = (input: BidInput) => withLock(input.roomId, async () => {
+export const placeBid = (input: BidInput, onCommitted?: () => void) => withLock(input.roomId, async () => {
   const [r, user, team] = await Promise.all([getRoom(input.roomId), prisma.user.findUnique({ where: { id: input.userId } }), prisma.team.findUnique({ where: { id: input.teamId } })]);
   if (!user) throw new AuctionError("Not authenticated", "UNAUTHENTICATED");
   if (!team || team.roomId !== r.id) throw new AuctionError("Team not found", "NOT_FOUND");
@@ -335,7 +349,7 @@ export const placeBid = (input: BidInput) => withLock(input.roomId, async () => 
   if (r.state === "COMPLETED") throw new AuctionError("Auction is completed", "COMPLETED");
   if (r.state.startsWith("RTM")) throw new AuctionError("Bidding closed — RTM decision in progress", "RTM");
   if (r.state !== "PLAYER_LIVE" || !r.currentPlayerId) throw new AuctionError("No player is live", "NO_PLAYER");
-  if (r.autoSell && !r.timerRunning && r.timerRemainingMs === 0) throw new AuctionError("Time is up for this player", "TIMER_EXPIRED");
+  if (!r.timerRunning && r.timerRemainingMs === 0) throw new AuctionError("Time is up for this player", "TIMER_EXPIRED");
   const player = await prisma.player.findUnique({ where: { id: r.currentPlayerId } });
   if (!player || player.status !== "LIVE") throw new AuctionError("Player is not live", "PLAYER_NOT_LIVE");
   if (team.squadCount >= r.maxSquadSize) throw new AuctionError(`Squad full (${r.maxSquadSize}/${r.maxSquadSize})`, "SQUAD_FULL");
@@ -358,6 +372,7 @@ export const placeBid = (input: BidInput) => withLock(input.roomId, async () => 
     return b;
   });
   if (timered) scheduleTimerEnd(r.id, endsAt);
+  onCommitted?.();
   await broadcast(r.id, "bid:accepted", { bidId: bid.id, teamId: team.id, teamName: team.name, amount, playerId: player.id, previousHighestTeamId: r.highestTeamId });
   return bid;
 });
@@ -406,7 +421,6 @@ async function resolveSaleUnlocked(r: RoomRow) {
   }
   return finalizeSaleUnlocked(r, r.highestTeamId, r.currentBid, false);
 }
-export const sellPlayer = (roomId: string) => withLock(roomId, async () => resolveSaleUnlocked(await getRoom(roomId)));
 
 export interface RtmInput { roomId: string; userId: string; action: RtmAction; amount?: number }
 

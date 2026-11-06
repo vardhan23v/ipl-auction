@@ -12,7 +12,7 @@ export function SettingsForm({ code, initial, started }: { code: string; initial
     const res = await fetch(`/api/rooms/${code}/settings`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const j = await res.json(); setBusy(false); push({ title: res.ok ? "Settings saved" : "Failed", body: j.error, tone: res.ok ? "success" : "error" }); if (res.ok) r.refresh();
   }
-  const num = (k: keyof S, label: string, hint?: string, disabled = false) => <div key={k}><label className="label">{label}</label><input className="input" type="number" disabled={disabled} value={Number(f[k])} onChange={(e) => set(k, Number(e.target.value) as S[typeof k])} />{hint && <div className="mt-1 text-[11px] text-muted">{hint}</div>}</div>;
+  const num = (k: keyof S, label: string, hint?: string, disabled = false) => <div key={k}><label className="label">{label}</label><input className="input" type="number" disabled={disabled} value={Number(f[k])} onChange={(e) => set(k, Number(e.target.value) as S[typeof k])} />{hint && <div className="mt-1 text-xs text-muted">{hint}</div>}</div>;
   const bool = (k: keyof S, label: string, hint?: string) => <label key={k} className="flex items-start gap-3 rounded-lg border border-line bg-panel-2 p-3 text-sm"><input type="checkbox" className="mt-1" checked={!!f[k]} onChange={(e) => set(k, e.target.checked as S[typeof k])} /><span><b>{label}</b>{hint && <div className="text-xs text-muted">{hint}</div>}</span></label>;
   return (
     <form onSubmit={save} className="max-w-3xl">
@@ -30,7 +30,6 @@ export function SettingsForm({ code, initial, started }: { code: string; initial
       <div className="mt-3 grid gap-2 md:grid-cols-2">
         {bool("isPublic", "Public room", "Listed in the public rooms directory so anyone can join. Private rooms need the code or link.")}
         {bool("autoTimer", "Start timer automatically", "The clock starts the moment a player comes up.")}
-        {bool("autoSell", "Auto-sell when the timer ends", "Highest bidder wins (after the RTM window); no bids = unsold. Off = you decide.")}
         {bool("rtmEnabled", "Right-To-Match enabled", "Turn off for a plain auction without RTM.")}
         {bool("unsoldReentry", "Unsold players can re-enter")}
       </div>

@@ -13,7 +13,7 @@ export default async function Overview({ params }: { params: Promise<{ code: str
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2"><h1 className="display text-3xl md:text-4xl">Manage · {room.name}</h1><Link href={`/r/${room.code}/host`} className="btn-red">Open host console</Link></div>
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">{tiles.map(([l, v]) => <div key={String(l)} className="card p-4"><div className="text-[11px] uppercase tracking-wider text-muted">{l}</div><div className="display mt-1 truncate text-2xl text-gold">{v}</div></div>)}</div>
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">{tiles.map(([l, v]) => <div key={String(l)} className="card p-4"><div className="text-xs uppercase tracking-wider text-muted">{l}</div><div className="display mt-1 truncate text-2xl text-gold">{v}</div></div>)}</div>
       <h2 className="display mt-8 text-2xl">Latest events</h2>
       <div className="card mt-2 divide-y divide-line/50 text-sm">{events.map((e) => <div key={e.id} className="flex justify-between p-2"><span><b>{e.type}</b> {e.player?.name && <span className="text-muted">· {e.player.name}</span>} {e.team && <span style={{ color: e.team.color }}>· {e.team.abbreviation}</span>} {e.amount != null && <span className="money">· {money(e.amount)}</span>}</span><span className="text-muted">{e.createdAt.toLocaleTimeString()}</span></div>)}{events.length === 0 && <div className="p-4 text-muted">No activity yet.</div>}</div>
       <DangerZone code={room.code} />

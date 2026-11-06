@@ -3,7 +3,7 @@
 # 🏏 IPL Mega Auction
 
 **Every Player Has a Price. Some Have a Match.**
-An open-source, self-hostable IPL franchise auction platform. Anyone signs in, **creates a room**, shares the 6-character code, friends claim the ten franchises and the host runs a live auction — a 273-player pool, ₹120 Cr purse per team, real-time bidding on the official IPL increment ladder, and **Right-To-Match (RTM) cards** that work only on each franchise's fixed list of former players. Works great on phones.
+An open-source, self-hostable IPL franchise auction platform. Anyone signs in, **creates a room**, shares the 6-character code, friends claim the ten franchises and the host runs a live auction — a 547-player IPL 2026 pool, ₹120 Cr purse per team, real-time bidding on the official IPL increment ladder, and **Right-To-Match (RTM) cards** that work only on each franchise's fixed list of former players. Works great on phones.
 
 Built in the same stack and visual language as [hpl-auction](https://github.com/vardhan23v/hpl-auction); player pool from the open-source [Crick Auction](https://github.com/Shaurya01836/ipl-auction) dataset (Apache-2.0). Hosted on **Railway** (app + MySQL).
 
@@ -26,12 +26,16 @@ Sign in with Google or as a guest, create a room, send the code to your friends 
 
 ---
 
+> **Branches:** `main` (this README) is the **Railway** build — MySQL + Socket.IO + NextAuth on one long-running Node server.
+> The **Supabase + Vercel** build (Postgres, Supabase Auth/Realtime, serverless) lives on the [`supabase`](https://github.com/vardhan23v/ipl-auction/tree/supabase) branch and is what Vercel deploys.
+> Both share the same phone UI, 547-player pool and auction rules.
+
 ## 🎮 How a game works
 
 1. **Create a room** at `/rooms` (Google or guest sign-in). Pick purse, squad size, timer, RTM cards. You become the **host**.
 2. **Share the code** — friends open `/r/CODE` (or type the code on the home page) and land in the room lobby.
 3. **Claim franchises** — each manager picks one of the ten franchises; the host can kick/reassign.
-4. **Host runs the auction** from the host console: start, queue, timer, SELL / UNSOLD / UNDO. The host never bids — **only a franchise's manager can bid, and only for their own team** (exactly like crickauction). Managers bid from the Live screen (`/r/CODE/live`) on their phones; unclaimed franchises simply sit out. Spectators watch the same screen or the projector screen `/r/CODE/display`.
+4. **Host runs the auction** from the host console: start, queue, timer, UNSOLD / UNDO — when the clock runs out after bidding, the player is sold automatically. The host never bids — **only a franchise's manager can bid, and only for their own team** (exactly like crickauction). Managers bid from the Live screen (`/r/CODE/live`) on their phones; unclaimed franchises simply sit out. Spectators watch the same screen or the projector screen `/r/CODE/display`.
 5. **The creator ends the auction** whenever they like — "End the auction" in the lobby, the live header or the host console. A lot still on the block is voided and the results become final.
 
 Rooms are independent — many groups can run auctions at once on one deployment. Public rooms are listed on the home page; private rooms are code-only.
@@ -45,11 +49,11 @@ Rooms are independent — many groups can run auctions at once on one deployment
   2. **Final raise** — the winning bidder may raise the price once (or keep it).
   3. **Match** — the previous franchise matches the final price (card consumed) or declines.
   RTM is only possible for players on a franchise's **fixed list** (`Player.previousTeamId`, pre-filled from IPL 2025 squads, editable per player in the admin panel), needs an unused card, enough purse, and room in the squad and overseas quota. Each step has a timeout with a safe default (pass / keep / decline).
-- **Shared countdown + auto-sell** — one server timer; when it hits zero the highest bidder wins (after the RTM window) or the player goes unsold. Can be switched off for a manual auctioneer.
-- **Transaction-safe sales** — SELL/MATCH run in one MySQL transaction with `SELECT … FOR UPDATE` row locks: squad entry, purse, overseas count, RTM card, player status, auction event — commit or roll back everything. **UNDO** reverses the last sale including the RTM card.
+- **Shared countdown + auto-sell** — one server timer; when it hits zero the highest bidder wins (after the RTM window) or the player goes unsold. There is no manual SELL button.
+- **Transaction-safe sales** — Every sale and RTM match runs in one MySQL transaction with `SELECT … FOR UPDATE` row locks: squad entry, purse, overseas count, RTM card, player status, auction event — commit or roll back everything. **UNDO** reverses the last sale including the RTM card.
 - **Rooms & lobby (crickauction-style)** — Google or guest sign-in, create or join a room by code, then claim one of the ten franchises; the host can kick/reassign owners.
 - **Owner dashboard** — purse, squad, overseas, RTM cards, big BID button with ladder quick-bids and custom jump bids, RTM decision buttons when it's their call, their RTM-eligible list.
-- **Host console** — start player (queue or hand-picked), timer start/pause/reset, SELL / UNSOLD / SKIP / NEXT / UNDO, order the queue by set, end the auction at any time. The host never bids: only a franchise's manager bids, and only for their own team, exactly like crickauction (unclaimed franchises sit out).
+- **Host console** — start player (queue or hand-picked), timer start/pause/reset, UNSOLD / SKIP / NEXT / UNDO (sales happen automatically when the clock ends), order the queue by set, end the auction at any time. The host never bids: only a franchise's manager bids, and only for their own team, exactly like crickauction (unclaimed franchises sit out).
 - **Room management (host)** — franchises (names, colours, logos, RTM cards per team), players (CRUD, RTM list editing, assign/move, re-import the pool), drag-to-reorder queue, sold/unsold lists, bid & event log, settings, danger zone (reset / delete room).
 - **Platform admin** — `/admin` lists every room and user on the deployment.
 - **Room pages** — live room, projector **big screen**, player pool browser, squads, **RTM board**, history, analytics (Recharts), results with a **Franchise Strength** leaderboard — all under `/r/CODE/…`.

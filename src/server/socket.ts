@@ -6,7 +6,7 @@ import { normalizeCode } from "@/lib/room";
 import * as engine from "./auction-engine";
 import type { SocketEvent } from "@/types/auction";
 
-interface AuthedSocket extends Socket { data: { userId?: string; role?: string; roomId?: string } }
+interface AuthedSocket extends Socket { data: { userId?: string; role?: string; roomId?: string; teamId?: string | null; teamRoomId?: string } }
 
 const buckets = new Map<string, { tokens: number; ts: number }>();
 function allow(key: string, max = 8, windowMs = 2000) {
@@ -66,15 +66,24 @@ export function attachSocket(httpServer: HttpServer) {
       if (!socket.data.roomId) return reply({ ok: false, error: "Join a room first", code: "NO_ROOM" });
       // A manager always bids for the franchise they claimed — nobody (not even the host) bids for another team.
       void payload?.teamId;
-      const own = await prisma.team.findFirst({ where: { roomId: socket.data.roomId, ownerId: socket.data.userId }, select: { id: true } });
-      const teamId = own?.id;
-      if (!teamId) return reply({ ok: false, error: "Claim a franchise before bidding", code: "NO_TEAM" });
+      // Cache the manager's franchise per socket (claims/releases reconnect the socket, which resets this). engine.placeBid re-checks ownership.
+      if (socket.data.teamRoomId !== socket.data.roomId) {
+        const own = await prisma.team.findFirst({ where: { roomId: socket.data.roomId, ownerId: socket.data.userId }, select: { id: true } });
+        socket.data.teamId = own?.id ?? null; socket.data.teamRoomId = socket.data.roomId;
+      }
+      const teamId = socket.data.teamId;
+      if (!teamId) { socket.data.teamRoomId = undefined; return reply({ ok: false, error: "Claim a franchise before bidding", code: "NO_TEAM" }); }
       if (!allow(socket.data.userId)) return reply({ ok: false, error: "Too many bids — slow down", code: "RATE_LIMIT" });
+      let acked = false;
       try {
-        const bid = await engine.placeBid({ roomId: socket.data.roomId, userId: socket.data.userId, teamId, amount: payload?.amount });
-        reply({ ok: true });
-        io.to(channel(socket.data.roomId)).emit("bid:placed", { bidId: bid.id, teamId: bid.teamId, amount: bid.amount });
-      } catch (e) { const err = e as engine.AuctionError; reply({ ok: false, error: err.message, code: err.code ?? "ERROR" }); }
+        // Ack as soon as the bid is committed; the full snapshot broadcast follows right behind.
+        await engine.placeBid({ roomId: socket.data.roomId, userId: socket.data.userId, teamId, amount: payload?.amount }, () => { acked = true; reply({ ok: true }); });
+        if (!acked) reply({ ok: true });
+      } catch (e) {
+        const err = e as engine.AuctionError;
+        if (err.code === "FORBIDDEN" || err.code === "NOT_FOUND") socket.data.teamRoomId = undefined;
+        if (!acked) reply({ ok: false, error: err.message, code: err.code ?? "ERROR" });
+      }
     });
 
     socket.on("rtm:action", async (payload: { action?: string; amount?: number } | undefined, cb?: (r: unknown) => void) => {

@@ -27,7 +27,8 @@ export function handle(e: unknown) {
   if (e instanceof ZodError) return fail(e.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "), 422, "VALIDATION");
   if (e instanceof AuctionError) return fail(e.message, 409, e.code);
   console.error(e);
-  return fail((e as Error).message ?? "Server error", 500);
+  // Never send raw database/driver errors to the browser; the details are in the server log.
+  return fail("Something went wrong on the server — try again", 500, "SERVER");
 }
 export async function audit(userId: string | undefined | null, action: string, entity?: string, entityId?: string, details?: unknown) {
   await prisma.auditLog.create({ data: { userId: userId ?? undefined, action, entity, entityId, details: (details as object) ?? undefined } }).catch(() => {});

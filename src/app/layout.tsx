@@ -12,12 +12,12 @@ export const metadata: Metadata = {
   description: "Ten franchises. ₹120 crore each. Right-To-Match cards. Bid live for the biggest names in the IPL pool.",
   openGraph: { title: "IPL Mega Auction — Live", description: "Ten franchises. One live auction. RTM cards in play.", siteName: "IPL Auction", type: "website" },
 };
-export const viewport = { themeColor: "#07090f" };
+export const viewport = { themeColor: "#07090f", width: "device-width", initialScale: 1, viewportFit: "cover" as const };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${sans.variable}`}>
-      <body className="min-h-screen"><Providers>{children}</Providers></body>
+      <body className="min-h-dvh"><Providers>{children}</Providers></body>
     </html>
   );
 }

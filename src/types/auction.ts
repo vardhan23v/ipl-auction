@@ -55,7 +55,7 @@ export type SocketEvent = typeof SOCKET_EVENTS[number];
 export const CONTROL_ACTIONS = [
   "START_AUCTION", "PAUSE", "RESUME", "COMPLETE", "RESET_AUCTION",
   "START_PLAYER", "START_TIMER", "PAUSE_TIMER", "RESET_TIMER",
-  "SELL", "UNSOLD", "SKIP", "NEXT", "UNDO", "REQUEUE", "SHUFFLE", "ORDER_BY_SET",
+  "UNSOLD", "SKIP", "NEXT", "UNDO", "REQUEUE", "SHUFFLE", "ORDER_BY_SET",
 ] as const;
 export type ControlAction = typeof CONTROL_ACTIONS[number];
 

@@ -18,7 +18,7 @@ export function JoinByCode({ compact = false }: { compact?: boolean }) {
     r.push(`/r/${code}`);
   }
   return (
-    <form onSubmit={submit} className={`flex w-full flex-col gap-2 sm:flex-row ${compact ? "" : "mx-auto max-w-md"}`} aria-label="Join a room by code">
+    <form onSubmit={submit} className={`flex w-full gap-2 ${compact ? "" : "mx-auto max-w-md"}`} aria-label="Join a room by code">
       <input
         value={code}
         onChange={(e) => setCode(clean(e.target.value))}
@@ -29,9 +29,9 @@ export function JoinByCode({ compact = false }: { compact?: boolean }) {
         maxLength={CODE_LEN}
         placeholder="ROOM CODE"
         aria-label="Room code"
-        className="input !py-3 text-center font-mono text-xl font-bold tracking-[.35em] uppercase placeholder:tracking-widest placeholder:text-base placeholder:font-sans"
+        className="input !py-3 text-center font-mono text-xl font-bold tracking-[.3em] uppercase placeholder:tracking-widest placeholder:text-base placeholder:font-sans"
       />
-      <button type="submit" disabled={!ready || busy} className="btn-gold !px-6 !py-3 text-base sm:shrink-0">{busy ? "Opening…" : "Join room"}</button>
+      <button type="submit" disabled={!ready || busy} className="btn-gold shrink-0 !px-5 !py-3 text-base">{busy ? "…" : "Join"}</button>
     </form>
   );
 }

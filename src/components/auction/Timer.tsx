@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { mmss } from "@/lib/format";
+import { useBidRemaining, useCountdown } from "@/hooks/useNow";
+import type { AuctionSnapshot } from "@/types/auction";
 export function Timer({ ms, running, total, size = "lg", color = "#f5b82e" }: { ms: number; running: boolean; total: number; size?: "lg" | "sm"; color?: string }) {
   const sec = Math.ceil(ms / 1000);
   const prev = useRef(sec); const [tick, setTick] = useState(0);
@@ -17,4 +19,15 @@ export function Timer({ ms, running, total, size = "lg", color = "#f5b82e" }: { 
       <div key={tick} className={`display absolute font-bold tabular-nums ${size === "lg" ? "text-4xl" : "text-base"} ${danger ? "text-live" : ""} ${running ? "tick" : "text-muted"}`}>{mmss(ms)}</div>
     </div>
   );
+}
+
+/** Bidding clock bound to a snapshot. Only this component re-renders as it ticks. */
+export function SnapTimer({ snap, size = "lg" }: { snap: AuctionSnapshot; size?: "lg" | "sm" }) {
+  const ms = useBidRemaining(snap);
+  return <Timer ms={ms} running={snap.timerRunning} total={snap.timerSeconds} size={size} />;
+}
+/** RTM decision clock. */
+export function RtmTimer({ snap, size = "lg" }: { snap: AuctionSnapshot; size?: "lg" | "sm" }) {
+  const ms = useCountdown(snap.rtm?.deadlineAt);
+  return <Timer ms={ms} running total={snap.rtmTimerSeconds} size={size} color="#a855f7" />;
 }
