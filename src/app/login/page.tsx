@@ -46,13 +46,13 @@ function Login() {
     setBusy(true); setErr(null);
     const { error } = await supabaseBrowser().auth.signInAnonymously({ options: { data: { name: n.slice(0, 40) } } });
     if (error) return fail(error, "Could not sign in");
-    r.replace(next ?? "/rooms"); r.refresh();
+    r.replace(next ?? "/rooms");
   }
   async function staff(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setErr(null);
     const { error } = await supabaseBrowser().auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
     if (error) return fail(error, "Invalid email or password");
-    r.replace(next ?? "/admin"); r.refresh();
+    r.replace(next ?? "/admin");
   }
   async function googleSignIn() {
     setBusy(true); setErr(null);
