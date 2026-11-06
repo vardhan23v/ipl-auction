@@ -1,7 +1,0 @@
-# Never upload local secrets or build output; Vercel gets env vars from its own settings.
-.env
-.env.*
-!.env.example
-node_modules
-.next
-.claude

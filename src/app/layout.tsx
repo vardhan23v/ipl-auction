@@ -7,7 +7,7 @@ const display = Oswald({ subsets: ["latin"], variable: "--font-display", weight:
 const sans = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000")),
+  metadataBase: new URL(process.env.NEXTAUTH_URL ?? "http://localhost:3000"),
   title: { default: "IPL Mega Auction — Live Franchise Auction", template: "%s · IPL Auction" },
   description: "Ten franchises. ₹120 crore each. Right-To-Match cards. Bid live for the biggest names in the IPL pool.",
   openGraph: { title: "IPL Mega Auction — Live", description: "Ten franchises. One live auction. RTM cards in play.", siteName: "IPL Auction", type: "website" },

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { useUser, signOut } from "@/hooks/useUser";
+import { useSession, signOut } from "next-auth/react";
 import { Sheet } from "./Sheet";
 
 const I = {
@@ -15,7 +15,7 @@ const Icon = ({ d }: { d: string }) => <svg viewBox="0 0 24 24" className="h-5 w
 
 /** Phone-only bottom tab bar for room pages. Desktop keeps the top nav. */
 export function RoomTabBar({ code, isHost, hasTeam }: { code: string; isHost: boolean; hasTeam: boolean }) {
-  const path = usePathname(); const [more, setMore] = useState(false); const me = useUser();
+  const path = usePathname(); const [more, setMore] = useState(false); const { data } = useSession(); const me = data?.user?.id ? data.user : null;
   const base = `/r/${code}`;
   const tabs = [
     { href: base, label: "Lobby", icon: <Icon d={I.lobby} /> },
@@ -52,7 +52,7 @@ export function RoomTabBar({ code, isHost, hasTeam }: { code: string; isHost: bo
         </div>
         <div className="mt-2 flex flex-col gap-2 border-t border-line/60 pt-3 pb-2">
           <Link href="/rooms" onClick={() => setMore(false)} className="btn-ghost tap justify-start">My rooms{me?.name ? ` · ${me.name}` : ""}</Link>
-          {me ? <button onClick={() => signOut()} className="btn-ghost tap justify-start text-muted">Log out</button> : <Link href={`/login?next=${base}`} className="btn-gold tap">Join / Sign in</Link>}
+          {me ? <button onClick={() => signOut({ callbackUrl: "/" })} className="btn-ghost tap justify-start text-muted">Log out</button> : <Link href={`/login?next=${base}`} className="btn-gold tap">Join / Sign in</Link>}
         </div>
       </Sheet>
     </>

@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { useUser, signOut } from "@/hooks/useUser";
+import { useSession, signOut } from "next-auth/react";
 
 /** Site nav. Inside a room (`/r/CODE/...`) it shows the room's sections; elsewhere the global ones. Collapses to a menu on phones. */
 export function Nav({ roomCode, roomName, isHost }: { roomCode?: string; roomName?: string; isHost?: boolean }) {
-  const me = useUser(); const path = usePathname(); const [open, setOpen] = useState(false); const [shared, setShared] = useState(false);
+  const { data } = useSession(); const me = data?.user?.id ? data.user : null; const path = usePathname(); const [open, setOpen] = useState(false); const [shared, setShared] = useState(false);
   async function share() {
     const url = `${window.location.origin}/r/${roomCode}`;
     try { if (navigator.share) { await navigator.share({ title: `${roomName ?? "IPL Auction"} · ${roomCode}`, text: `Join my IPL auction room ${roomCode}`, url }); return; } await navigator.clipboard.writeText(url); setShared(true); setTimeout(() => setShared(false), 1500); } catch { /* share cancelled */ }
@@ -33,7 +33,7 @@ export function Nav({ roomCode, roomName, isHost }: { roomCode?: string; roomNam
               {u.image ? <img src={u.image} alt="" className="h-6 w-6 rounded-full" /> : <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gold text-[11px] font-bold text-black">{(u.name ?? "?")[0]}</span>}
               <span className="max-w-[9rem] truncate">{u.name}</span>
             </Link>
-            <button onClick={() => signOut()} className="hidden px-2 text-sm text-muted hover:text-ink sm:inline">Logout</button>
+            <button onClick={() => signOut({ callbackUrl: "/" })} className="hidden px-2 text-sm text-muted hover:text-ink sm:inline">Logout</button>
           </>) : <Link href="/login" className="btn-gold !px-3 !py-1.5 text-sm">Join / Sign in</Link>}
           <button className="btn-ghost tap !px-3 lg:hidden" aria-label="Menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? "✕" : "☰"}</button>
         </div>
@@ -44,7 +44,7 @@ export function Nav({ roomCode, roomName, isHost }: { roomCode?: string; roomNam
           <div className="grid grid-cols-2 gap-1">
             {links.map(([l, h, cls]) => <Link key={h} href={h} onClick={() => setOpen(false)} className={`tap flex items-center rounded-md px-3 text-sm ${active(h)} ${cls ?? ""}`}>{l}</Link>)}
             {u && <Link href="/rooms" onClick={() => setOpen(false)} className="rounded-md px-3 py-2 text-sm text-muted hover:bg-panel-2">My rooms ({u.name})</Link>}
-            {u && <button onClick={() => signOut()} className="rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-panel-2">Logout</button>}
+            {u && <button onClick={() => signOut({ callbackUrl: "/" })} className="rounded-md px-3 py-2 text-left text-sm text-muted hover:bg-panel-2">Logout</button>}
           </div>
         </nav>
       )}

@@ -125,7 +125,7 @@ export default async function AdminPage() {
                 {users.map((u) => (
                   <tr key={u.id} className="border-t border-line/60 hover:bg-panel-2/40">
                     <td className={`${td} max-w-[12rem] truncate font-medium`} title={u.name}>{u.name}</td>
-                    <td className={`${td} max-w-[16rem] truncate text-muted`} title={u.email ?? undefined}>{u.email ?? (u.isGuest ? "guest" : "—")}</td>
+                    <td className={`${td} max-w-[16rem] truncate text-muted`} title={u.email}>{u.email}</td>
                     <td className={td}><span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${u.role === "ADMIN" ? "border-gold/50 bg-gold/10 text-gold" : "border-line bg-panel-2 text-muted"}`}>{u.role}</span></td>
                     <td className={`${td} text-xs`}>{u.isGuest ? <span className="text-muted">Guest</span> : <span className="text-ink">—</span>}</td>
                     <td className={`${td} text-right tabular-nums`}>{u._count.hostedRooms}</td>

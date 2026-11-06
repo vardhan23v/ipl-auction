@@ -7,7 +7,7 @@ import { TeamBadge } from "@/components/TeamBadge";
 import { RtmCards } from "@/components/auction/PursePanel";
 import { RoomLivePreview } from "@/components/auction/RoomLivePreview";
 import { useToast } from "@/components/Toast";
-import { roomBus } from "@/lib/realtime-client";
+import { getSocket, reconnectSocket } from "@/lib/socket-client";
 import { money } from "@/lib/format";
 import type { AuctionSnapshot, RoomAccess } from "@/types/auction";
 
@@ -25,15 +25,16 @@ export function Lobby({ code, room: roomProp, access, me, teams: teamsProp, memb
   const owners = useRef("");
   useEffect(() => { owners.current = teamsProp.map((t) => t.owner?.id ?? "").join(","); }, [teamsProp]);
   useEffect(() => {
-    const bus = roomBus(code); let t: ReturnType<typeof setTimeout> | undefined;
+    const s = getSocket(); let t: ReturnType<typeof setTimeout> | undefined;
     const refresh = () => { clearTimeout(t); t = setTimeout(() => r.refresh(), 300); };
     const onSnap = (p: { snapshot?: AuctionSnapshot }) => {
       const sn = p?.snapshot; if (!sn || sn.roomCode !== code) return;
       setLive((cur) => ({ ...cur, state: sn.state, teams: cur.teams.map((x) => { const y = sn.teams.find((z) => z.id === x.id); return y ? { ...x, purse: y.purse, squadCount: y.squadCount, rtmUsed: y.rtmUsed, rtmTotal: y.rtmTotal } : x; }) }));
       if (sn.teams.map((x) => x.ownerId ?? "").join(",") !== owners.current) refresh();
     };
-    const offs = [...["state:sync", "team:purseUpdated", "player:sold", "auction:undo", "auction:started", "auction:completed"].map((e) => bus.on(e, onSnap)), bus.on("room:members", refresh)];
-    return () => { clearTimeout(t); offs.forEach((off) => off()); };
+    const ev = ["state:sync", "team:purseUpdated", "player:sold", "auction:undo", "auction:started", "auction:completed"];
+    ev.forEach((e) => s.on(e, onSnap)); s.on("room:members", refresh);
+    return () => { clearTimeout(t); ev.forEach((e) => s.off(e, onSnap)); s.off("room:members", refresh); };
   }, [r, code]);
   const mine = me ? teams.find((t) => t.owner?.id === me.id) : undefined;
   const taken = teams.filter((t) => t.owner).length;
@@ -41,8 +42,8 @@ export function Lobby({ code, room: roomProp, access, me, teams: teamsProp, memb
   const link = typeof window !== "undefined" ? `${window.location.origin}/r/${code}` : `/r/${code}`;
 
   async function post(path: string, body?: object, method = "POST") { setBusy(path); const res = await fetch(`/api/rooms/${code}${path}`, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined }); const j = await res.json().catch(() => ({})); setBusy(null); if (!res.ok) push({ title: "Failed", body: j.error, tone: "error" }); return res.ok; }
-  async function claim(t: T) { if (await post("/claim", { teamId: t.id })) { push({ title: `You now manage ${t.name}`, tone: "success" }); r.refresh(); } }
-  async function release() { if (!confirm("Release your franchise and go back to spectating?")) return; if (await post("/claim", undefined, "DELETE")) { r.refresh(); } }
+  async function claim(t: T) { if (await post("/claim", { teamId: t.id })) { push({ title: `You now manage ${t.name}`, tone: "success" }); await reconnectSocket(); r.refresh(); } }
+  async function release() { if (!confirm("Release your franchise and go back to spectating?")) return; if (await post("/claim", undefined, "DELETE")) { await reconnectSocket(); r.refresh(); } }
   async function control(action: string, msg?: string) { if (msg && !confirm(msg)) return; if (await post("/control", { action })) push({ title: action.replace(/_/g, " "), tone: "success" }); }
   async function copy() {
     try { if (navigator.share && window.matchMedia("(max-width: 767px)").matches) { await navigator.share({ title: `${room.name} · ${code}`, text: `Join my IPL auction room ${code}`, url: link }); return; } } catch { return; }

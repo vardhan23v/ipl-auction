@@ -33,7 +33,7 @@ export async function GET(req: Request, { params }: P) {
   const u = new URL(req.url);
   const q = u.searchParams.get("q") || undefined, status = u.searchParams.get("status") || undefined, role = u.searchParams.get("role") || undefined, set = u.searchParams.get("set") || undefined, prev = u.searchParams.get("prev") || undefined;
   const players = await prisma.player.findMany({
-    where: { roomId: g.room.id, ...(q ? { name: { contains: q, mode: "insensitive" as const } } : {}), ...(status ? { status: status as never } : {}), ...(role ? { role: role as never } : {}), ...(set ? { set } : {}), ...(prev ? { previousTeamId: prev } : {}) },
+    where: { roomId: g.room.id, ...(q ? { name: { contains: q } } : {}), ...(status ? { status: status as never } : {}), ...(role ? { role: role as never } : {}), ...(set ? { set } : {}), ...(prev ? { previousTeamId: prev } : {}) },
     orderBy: [{ queueOrder: "asc" }, { createdAt: "desc" }], include: { soldTo: { select: { name: true, abbreviation: true, color: true } }, previousTeam: { select: { abbreviation: true, color: true } }, squadEntry: { select: { viaRtm: true } } }, take: 600,
   });
   return json(players.map((p) => ({ ...p, viaRtm: p.squadEntry?.viaRtm ?? false, squadEntry: undefined })));

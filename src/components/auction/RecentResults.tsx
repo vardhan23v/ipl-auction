@@ -1,6 +1,6 @@
 "use client";
 import { memo, useEffect, useState } from "react";
-import { roomBus } from "@/lib/realtime-client";
+import { getSocket } from "@/lib/socket-client";
 import { money, ROLE_LABEL } from "@/lib/format";
 import { useRoom, roomApi } from "../RoomContext";
 type Row = { id: string; name: string; role: string; status: string; basePrice: number; soldPrice: number | null; overseas: boolean; viaRtm: boolean; soldTo: { name: string; abbreviation: string; color: string } | null };
@@ -11,8 +11,8 @@ export const RecentResults = memo(function RecentResults() {
   useEffect(() => {
     load();
     let t: ReturnType<typeof setTimeout> | undefined; const later = () => { clearTimeout(t); t = setTimeout(load, 250); };
-    const bus = roomBus(code); const offs = ["player:sold", "player:unsold", "auction:undo", "auction:completed"].map((e) => bus.on(e, later));
-    return () => { clearTimeout(t); offs.forEach((off) => off()); };
+    const s = getSocket(); const ev = ["player:sold", "player:unsold", "auction:undo", "auction:completed"]; ev.forEach((e) => s.on(e, later));
+    return () => { clearTimeout(t); ev.forEach((e) => s.off(e, later)); };
   }, [code]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="card p-3 md:p-4">

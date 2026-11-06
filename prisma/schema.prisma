@@ -2,11 +2,9 @@ generator client {
   provider = "prisma-client-js"
 }
 
-/// Supabase Postgres. DATABASE_URL = pooled (port 6543, ?pgbouncer=true) for the app; DIRECT_URL = direct (5432) for migrations.
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "mysql"
+  url      = env("DATABASE_URL")
 }
 
 /// Platform-level role. Everything auction-related is scoped to a Room (host / owner / spectator per room).
@@ -44,11 +42,11 @@ enum AuctionState {
   COMPLETED
 }
 
-/// App profile for a Supabase Auth user. `id` is the Supabase auth user id (auth.users.id); guests are anonymous Supabase users.
 model User {
-  id           String   @id
+  id           String   @id @default(cuid())
   name         String
-  email        String?  @unique
+  email        String   @unique
+  passwordHash String
   role         Role     @default(USER)
   image        String?  @db.Text
   isGuest      Boolean  @default(false)
