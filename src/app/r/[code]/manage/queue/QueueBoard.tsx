@@ -15,7 +15,7 @@ function Row({ p, i, onStart }: { p: Q; i: number; onStart: (id: string) => void
       <span {...attributes} {...listeners} className="cursor-grab touch-none select-none px-1 text-muted" title="Drag to reorder">⠿</span>
       <span className="w-7 text-muted">{i + 1}</span>
       <span className="min-w-0 flex-1 truncate font-semibold">{p.name}{p.overseas && <span className="ml-1 text-xs text-sky-300">✈</span>} <span className="hidden text-xs font-normal text-muted sm:inline">{ROLE_SHORT[p.role]} · {p.set}</span></span>
-      {p.previousTeam && <span className="rounded px-1.5 py-0.5 text-[10px] font-bold text-white" style={{ background: p.previousTeam.color }}>{p.previousTeam.abbreviation}</span>}
+      {p.previousTeam && <span className="rounded px-1.5 py-0.5 text-xs font-bold text-white" style={{ background: p.previousTeam.color }}>{p.previousTeam.abbreviation}</span>}
       <span className="money w-16 text-right sm:w-20">{money(p.basePrice)}</span>
       <button className="rounded bg-gold/20 px-2 py-0.5 text-xs text-gold" onClick={() => onStart(p.id)}>Start</button>
     </div>

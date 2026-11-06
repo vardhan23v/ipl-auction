@@ -2,6 +2,7 @@
 /** Fullscreen broadcast view for the projector on auction night. */
 import { useEffect, useState } from "react";
 import { useAuction } from "@/hooks/useAuction";
+import { useNow, bidRemainingMs } from "@/hooks/useNow";
 import { money, ROLE_LABEL, mmss, STATE_LABEL } from "@/lib/format";
 import { TeamBadge } from "@/components/TeamBadge";
 import { PlayerPhoto } from "@/components/PlayerPhoto";
@@ -12,9 +13,10 @@ export function DisplayScreen({ code, initial }: { code: string; initial: Auctio
   const a = useAuction(code, initial);
   const [clock, setClock] = useState("");
   useEffect(() => { const t = setInterval(() => setClock(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })), 1000); return () => clearInterval(t); }, []);
+  const now = useNow(200, !!a.snap && (a.snap.timerRunning || !!a.snap.rtm?.deadlineAt));
   if (!a.snap) return null;
-  const s = a.snap; const p = s.currentPlayer; const highest = s.teams.find((t) => t.id === s.highestTeamId);
-  const sec = Math.ceil(a.remainingMs / 1000); const live = !["WAITING", "COMPLETED", "PAUSED"].includes(s.state); const rtm = s.state.startsWith("RTM");
+  const s = a.snap; const remainingMs = bidRemainingMs(s, now); const rtmRemainingMs = s.rtm?.deadlineAt ? Math.max(0, s.rtm.deadlineAt - now) : 0; const p = s.currentPlayer; const highest = s.teams.find((t) => t.id === s.highestTeamId);
+  const sec = Math.ceil(remainingMs / 1000); const live = !["WAITING", "COMPLETED", "PAUSED"].includes(s.state); const rtm = s.state.startsWith("RTM");
   return (
     <div className="stadium fixed inset-0 flex flex-col overflow-hidden bg-pitch">
       <ConnectionOverlay size="big" />
@@ -33,7 +35,7 @@ export function DisplayScreen({ code, initial }: { code: string; initial: Auctio
       {p ? (
         <main className="grid min-h-0 flex-1 grid-cols-[1fr_1.4fr] gap-8 p-8">
           <div className="relative overflow-hidden rounded-3xl border border-line bg-panel-2">
-            <PlayerPhoto src={p.photoUrl} name={p.name} className="h-full w-full object-cover object-top text-[30vh]" />
+            <PlayerPhoto src={p.photoUrl} name={p.name} sizes="40vw" className="h-full w-full object-cover object-top text-[30vh]" />
             {s.state === "PAUSED" && <div className="absolute inset-0 flex items-center justify-center bg-black/70"><span className="display text-[8vh] text-gold">PAUSED</span></div>}
             {p.previousTeamAbbr && <div className={`absolute bottom-4 left-4 rounded-xl px-4 py-2 text-2xl font-bold ${p.rtmAvailable ? "bg-rtm text-white" : "bg-black/70 text-muted"}`}>RTM · {p.previousTeamAbbr}</div>}
           </div>
@@ -44,8 +46,8 @@ export function DisplayScreen({ code, initial }: { code: string; initial: Auctio
                 <h1 className="display mt-1 text-[9vh] font-bold leading-[.95]">{p.name}</h1>
                 <div className="mt-3 flex gap-3 text-2xl text-muted"><span className="rounded-xl bg-panel-2 px-4 py-1 font-semibold text-ink">{ROLE_LABEL[p.role]}</span><span className="rounded-xl bg-panel-2 px-4 py-1">{p.overseas ? "✈ Overseas" : "Indian"}</span><span className="rounded-xl bg-panel-2 px-4 py-1">★ {p.rating ?? "—"}</span></div>
               </div>
-              {s.timerRunning && !rtm && <div className={`display rounded-2xl border-4 px-8 py-4 text-[8vh] font-bold leading-none tabular-nums ${sec <= 5 ? "border-live text-live" : "border-line text-ink"}`}>{mmss(a.remainingMs)}</div>}
-              {rtm && s.rtm && <div className="display rounded-2xl border-4 border-rtm px-8 py-4 text-right text-rtm-2"><div className="text-2xl">RTM · {s.state === "RTM_OFFER" ? `${s.rtm.teamAbbr} deciding` : s.state === "RTM_RAISE" ? `${s.rtm.bidderTeamAbbr} may raise` : `${s.rtm.teamAbbr} to match`}</div><div className="text-[6vh] font-bold leading-none tabular-nums">{mmss(a.rtmRemainingMs)}</div></div>}
+              {s.timerRunning && !rtm && <div className={`display rounded-2xl border-4 px-8 py-4 text-[8vh] font-bold leading-none tabular-nums ${sec <= 5 ? "border-live text-live" : "border-line text-ink"}`}>{mmss(remainingMs)}</div>}
+              {rtm && s.rtm && <div className="display rounded-2xl border-4 border-rtm px-8 py-4 text-right text-rtm-2"><div className="text-2xl">RTM · {s.state === "RTM_OFFER" ? `${s.rtm.teamAbbr} deciding` : s.state === "RTM_RAISE" ? `${s.rtm.bidderTeamAbbr} may raise` : `${s.rtm.teamAbbr} to match`}</div><div className="text-[6vh] font-bold leading-none tabular-nums">{mmss(rtmRemainingMs)}</div></div>}
             </div>
             <div className="mt-auto">
               <div className="flex items-end justify-between">
