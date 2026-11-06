@@ -7,7 +7,7 @@ An open-source, self-hostable IPL franchise auction platform. Anyone signs in, *
 
 Built in the same stack and visual language as [hpl-auction](https://github.com/vardhan23v/hpl-auction); player pool from the open-source [Crick Auction](https://github.com/Shaurya01836/ipl-auction) dataset (Apache-2.0). Hosted on **Vercel** (app) + **Supabase** (Postgres, Auth, Realtime).
 
-[![Play it live](https://img.shields.io/badge/▶%20PLAY%20IT%20LIVE-ipl--web--production.up.railway.app-F5B82E?style=for-the-badge&logo=cricket&logoColor=black)](https://ipl-web-production.up.railway.app)
+[![Play it live](https://img.shields.io/badge/▶%20PLAY%20IT%20LIVE-ipl--auction--kappa--eight.vercel.app-F5B82E?style=for-the-badge&logo=vercel&logoColor=black)](https://ipl-auction-kappa-eight.vercel.app)
 
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
 [![React 19](https://img.shields.io/badge/React-19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://react.dev)
