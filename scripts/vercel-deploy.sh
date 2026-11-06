@@ -18,7 +18,7 @@ for VAR in DATABASE_URL DIRECT_URL NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE
   [ -n "$VAL" ] || { echo "   $VAR missing in .env"; exit 1; }
   for ENV in production preview; do
     vercel env rm "$VAR" "$ENV" --yes >/dev/null 2>&1 || true
-    printf '%s' "$VAL" | vercel env add "$VAR" "$ENV" >/dev/null 2>&1
+    printf '%s' "$VAL" | vercel env add "$VAR" --environment "$ENV" --yes >/dev/null 2>&1 || { echo "   could not set $VAR for $ENV"; exit 1; }
   done
   echo "   $VAR ✓"
 done
