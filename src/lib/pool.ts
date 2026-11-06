@@ -17,6 +17,8 @@ export const TEAMS = [
 
 type PoolPlayer = (typeof pool)[number];
 export const POOL_SIZE = pool.length;
+/** externalId → previous franchise abbreviation (the fixed RTM list), from the bundled pool. */
+export const PREVIOUS_TEAM = new Map((pool as PoolPlayer[]).filter((p) => p.previousTeam).map((p) => [p.externalId, p.previousTeam as string]));
 
 /** Build the Player rows for a room from the bundled pool. `teamIds` maps abbreviation → team id in that room. */
 export function poolRows(roomId: string, teamIds: Map<string, string>): Prisma.PlayerCreateManyInput[] {

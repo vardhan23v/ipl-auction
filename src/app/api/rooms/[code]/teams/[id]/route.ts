@@ -25,3 +25,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ code: 
     return json(team);
   } catch (e) { return handle(e); }
 }
+
+/** Host, before the start: take a franchise out of this auction. Its former players simply lose their RTM link. */
+export async function DELETE(_: Request, { params }: { params: Promise<{ code: string; id: string }> }) {
+  const { code, id } = await params; const g = await roomGuard(code, "host"); if ("error" in g) return g.error;
+  try {
+    if (g.room.state !== "WAITING") return json({ error: "Teams can only be removed before the auction starts" }, 409);
+    const count = await prisma.team.count({ where: { roomId: g.room.id } });
+    if (count <= 2) return json({ error: "An auction needs at least 2 franchises" }, 409);
+    const t = await prisma.team.findFirstOrThrow({ where: { id, roomId: g.room.id } });
+    if (t.ownerId) await prisma.roomMember.updateMany({ where: { roomId: g.room.id, userId: t.ownerId, role: "OWNER" }, data: { role: "SPECTATOR" } });
+    await prisma.team.delete({ where: { id: t.id } });
+    await audit(g.access.userId, "TEAM_REMOVE", "Team", id, { abbreviation: t.abbreviation });
+    await emitSnapshot(g.room.id, "team:purseUpdated", { teamId: id });
+    return json({ ok: true });
+  } catch (e) { return handle(e); }
+}

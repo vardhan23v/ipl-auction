@@ -4,7 +4,7 @@ import type { RoomAccess } from "@/types/auction";
 export function RoomShell({ room, access, children }: { room: { code: string; name: string }; access: RoomAccess; children: React.ReactNode }) {
   const isHost = access.isHost || access.isAdmin;
   return (<>
-    <Nav roomCode={room.code} roomName={room.name} isHost={isHost} />
+    <Nav roomCode={room.code} roomName={room.name} isHost={isHost} hasTeam={!!access.teamId} />
     <div className="page-enter pb-tabbar">{children}</div>
     <RoomTabBar code={room.code} isHost={isHost} hasTeam={!!access.teamId} />
   </>);

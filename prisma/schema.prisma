@@ -81,6 +81,8 @@ model Room {
   rtmEnabled      Boolean      @default(true)
   defaultRtmCards Int          @default(2)
   unsoldReentry   Boolean      @default(true)
+  /// Seconds the SOLD/UNSOLD result stays on screen before the next player comes up.
+  nextPlayerGapSeconds Int     @default(4)
   // ---- live auction state (server is the source of truth) ----
   state            AuctionState @default(WAITING)
   currentPlayerId  String?
@@ -94,6 +96,8 @@ model Room {
   rtmBidderTeamId  String?
   rtmFinalAmount   Int?
   rtmDeadlineAt    DateTime?
+  /// When SOLD/UNSOLD: the moment the next player comes up automatically (no NEXT button).
+  nextPlayerAt     DateTime?
   startedAt        DateTime?
   completedAt      DateTime?
   version          Int          @default(0)

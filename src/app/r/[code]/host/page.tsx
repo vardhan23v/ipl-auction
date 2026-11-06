@@ -1,10 +1,5 @@
-import { loadRoomPage } from "@/lib/room-page";
-import { getSnapshot } from "@/server/auction-engine";
-import { RoomShell } from "../RoomShell";
-import { HostRoom } from "./HostRoom";
-export const dynamic = "force-dynamic";
-export const metadata = { title: "Host Console" };
+import { redirect } from "next/navigation";
+/** The host console is gone: hosts set up at /setup and run the auction from Live (⋯ menu). Old links land there. */
 export default async function HostPage({ params }: { params: Promise<{ code: string }> }) {
-  const { room, access } = await loadRoomPage((await params).code, "host");
-  return <RoomShell room={room} access={access}><HostRoom code={room.code} access={access} initial={await getSnapshot(room.id)} /></RoomShell>;
+  redirect(`/r/${(await params).code}/live`);
 }
