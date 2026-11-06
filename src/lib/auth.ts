@@ -1,78 +1,59 @@
-import type { NextAuthOptions } from "next-auth";
-import { getServerSession } from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
-import GoogleProvider from "next-auth/providers/google";
-import bcrypt from "bcryptjs";
-import { randomBytes } from "crypto";
-import { prisma } from "./prisma";
+import { cache } from "react";
 import type { Role } from "@prisma/client";
+import { prisma } from "./prisma";
+import { supabaseServer } from "./supabase/server";
 export { roleHome } from "./auth-client";
 
-export const googleEnabled = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
-
 /**
- * Sign-in like crickauction.in: "Continue with Google" or "Join as guest" (just a name).
- * Roles inside an auction (host / owner / spectator) are per room; the platform role is only ADMIN or USER.
+ * Sign-in is Supabase Auth: Google, anonymous ("Join as guest", name in user_metadata) and email+password for the platform admin.
+ * Our `User` table is the app profile, keyed by the Supabase auth user id. Roles inside an auction (host / owner / spectator)
+ * are per room; the platform role is only ADMIN or USER and lives in `User.role`.
  */
-export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 14 },
-  secret: process.env.NEXTAUTH_SECRET,
-  pages: { signIn: "/login" },
-  providers: [
-    ...(googleEnabled ? [GoogleProvider({ clientId: process.env.GOOGLE_CLIENT_ID!, clientSecret: process.env.GOOGLE_CLIENT_SECRET! })] : []),
-    CredentialsProvider({
-      id: "guest", name: "Guest",
-      credentials: { name: { label: "Display name", type: "text" } },
-      async authorize(creds) {
-        const name = creds?.name?.trim().slice(0, 40);
-        if (!name || name.length < 2) return null;
-        const user = await prisma.user.create({ data: { name, email: `guest_${randomBytes(6).toString("hex")}@guest.ipl.local`, role: "USER", isGuest: true, passwordHash: await bcrypt.hash(randomBytes(16).toString("hex"), 4) } });
-        return { id: user.id, name: user.name, email: user.email, role: user.role, isGuest: true };
-      },
-    }),
-    CredentialsProvider({
-      id: "credentials", name: "Email & password",
-      credentials: { email: { label: "Email", type: "email" }, password: { label: "Password", type: "password" } },
-      async authorize(creds) {
-        if (!creds?.email || !creds.password) return null;
-        const user = await prisma.user.findUnique({ where: { email: creds.email.toLowerCase().trim() } });
-        if (!user || user.isGuest) return null;
-        if (!(await bcrypt.compare(creds.password, user.passwordHash))) return null;
-        return { id: user.id, name: user.name, email: user.email, role: user.role, isGuest: false };
-      },
-    }),
-  ],
-  callbacks: {
-    async signIn({ user, account, profile }) {
-      if (account?.provider !== "google") return true;
-      const email = (user.email ?? "").toLowerCase();
-      if (!email) return false;
-      const existing = await prisma.user.findUnique({ where: { email } });
-      const image = (profile as { picture?: string } | undefined)?.picture ?? user.image ?? null;
-      const u = existing
-        ? await prisma.user.update({ where: { email }, data: { image, name: existing.name || user.name || email } })
-        : await prisma.user.create({ data: { name: user.name ?? email.split("@")[0], email, image, role: "USER", passwordHash: await bcrypt.hash(randomBytes(16).toString("hex"), 4) } });
-      user.id = u.id; (user as { role: Role }).role = u.role;
-      return true;
-    },
-    async jwt({ token, user }) {
-      if (user) { token.uid = user.id; token.role = (user as { role: Role }).role; token.isGuest = !!(user as { isGuest?: boolean }).isGuest; }
-      if (token.uid) {
-        const u = await prisma.user.findUnique({ where: { id: token.uid as string }, select: { role: true, name: true, image: true, isGuest: true } });
-        if (u) { token.role = u.role; token.name = u.name; token.picture = u.image ?? token.picture; token.isGuest = u.isGuest; } else { delete token.uid; }
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      session.user.id = token.uid as string; session.user.role = (token.role as Role) ?? "USER"; session.user.isGuest = !!token.isGuest;
-      if (token.name) session.user.name = token.name as string;
-      if (token.picture) session.user.image = token.picture as string;
-      return session;
-    },
-  },
-};
-/** Server session; a stale cookie for a deleted user counts as signed out. */
-export const getSession = async () => { const s = await getServerSession(authOptions); return s?.user?.id ? s : null; };
+export type AppSession = { user: { id: string; name: string; email: string | null; image: string | null; role: Role; isGuest: boolean } };
+
+type Claims = { sub: string; email?: string; is_anonymous?: boolean; user_metadata?: Record<string, unknown> };
+type Profile = { role: Role; name: string; image: string | null; isGuest: boolean; email: string | null };
+
+/** Short cache so we don't hit Postgres for the profile on every request; role/name changes show within 30 s. */
+const G = globalThis as unknown as { __iplProfiles?: Map<string, { p: Profile; at: number }> };
+const profiles = (G.__iplProfiles ??= new Map());
+
+function fromClaims(c: Claims) {
+  const m = c.user_metadata ?? {};
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const name = (str(m.name) ?? str(m.full_name) ?? (c.email ? c.email.split("@")[0] : null) ?? "Guest").slice(0, 40);
+  return { name, email: c.email ? c.email.toLowerCase() : null, image: str(m.avatar_url) ?? str(m.picture), isGuest: !!c.is_anonymous };
+}
+
+/** Load (or create on first sign-in) the app profile for a Supabase user. */
+async function ensureProfile(c: Claims): Promise<Profile> {
+  const hit = profiles.get(c.sub);
+  if (hit && Date.now() - hit.at < 30_000) return hit.p;
+  const meta = fromClaims(c);
+  const u = await prisma.user.upsert({
+    where: { id: c.sub },
+    // Keep a name the user already has; refresh avatar/email from the provider; an anonymous user who links Google stops being a guest.
+    update: { image: meta.image ?? undefined, email: meta.email ?? undefined, isGuest: meta.isGuest },
+    create: { id: c.sub, name: meta.name, email: meta.email, image: meta.image, isGuest: meta.isGuest, role: "USER" },
+    select: { role: true, name: true, image: true, isGuest: true, email: true },
+  });
+  if (profiles.size > 5000) profiles.clear();
+  profiles.set(c.sub, { p: u, at: Date.now() });
+  return u;
+}
+
+/** Server session for the current request (deduplicated per request), or null when signed out. */
+export const getSession = cache(async (): Promise<AppSession | null> => {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return null;
+  const sb = await supabaseServer();
+  // getClaims verifies the JWT (locally when the project uses asymmetric signing keys) — cheaper than getUser().
+  const { data, error } = await sb.auth.getClaims();
+  const claims = data?.claims as Claims | undefined;
+  if (error || !claims?.sub) return null;
+  const p = await ensureProfile(claims);
+  return { user: { id: claims.sub, name: p.name, email: p.email, image: p.image, role: p.role, isGuest: p.isGuest } };
+});
+
 export async function requireRole(...roles: Role[]) {
   const s = await getSession();
   if (!s?.user || !roles.includes(s.user.role)) return null;

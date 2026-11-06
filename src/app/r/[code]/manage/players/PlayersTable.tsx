@@ -21,7 +21,7 @@ export function PlayersTable({ title, fixedStatus, teams }: { title: string; fix
     await call(`/players/${p.id}/team`, "PUT", { teamId: team?.id ?? null, price: price ? Number(price) : undefined }, team ? `Assigned to ${team.abbreviation}` : "Returned to pool");
   }
   async function importPool(replace: boolean) {
-    if (!confirm(replace ? "Re-import the bundled pool and WIPE this room's auction (sales, bids, purses)?" : "Add any missing players from the bundled 273-player pool?")) return;
+    if (!confirm(replace ? "Re-import the bundled pool and WIPE this room's auction (sales, bids, purses)?" : "Add any missing players from the bundled player pool?")) return;
     const j = await call(`/players/import${replace ? "?replace=1" : ""}`, "POST", undefined, "Pool imported"); if (j?.created != null) push({ title: `${j.created} added`, tone: "info" });
   }
   const statusCls: Record<string, string> = { SOLD: "bg-emerald-500/20 text-emerald-400", UNSOLD: "bg-live/20 text-live", LIVE: "bg-live text-white", SKIPPED: "bg-zinc-600/40 text-zinc-300", WAITING: "bg-gold/20 text-gold", POOL: "bg-panel-2 text-muted" };
@@ -46,11 +46,11 @@ export function PlayersTable({ title, fixedStatus, teams }: { title: string; fix
             {rows.map((p) => (
               <tr key={p.id} className="border-t border-line/50">
                 <td className="p-2 text-muted">{p.queueOrder ?? "—"}</td>
-                <td className="p-2 font-semibold">{p.name}{p.overseas && <span className="ml-1 text-xs text-sky-300">✈</span>}{!p.capped && <span className="ml-1 text-[10px] text-muted">U</span>}</td>
+                <td className="p-2 font-semibold">{p.name}{p.overseas && <span className="ml-1 text-xs text-sky-300">✈</span>}{!p.capped && <span className="ml-1 text-xs text-muted">U</span>}</td>
                 <td className="p-2">{ROLE_SHORT[p.role]}</td><td className="p-2 text-muted">{p.set}</td><td className="p-2">{money(p.basePrice)}</td><td className="p-2">{p.rating ?? "—"}</td>
-                <td className="p-2">{p.previousTeam ? <span className="rounded px-1.5 py-0.5 text-[10px] font-bold text-white" style={{ background: p.previousTeam.color }}>{p.previousTeam.abbreviation}</span> : <span className="text-muted">—</span>}</td>
+                <td className="p-2">{p.previousTeam ? <span className="rounded px-1.5 py-0.5 text-xs font-bold text-white" style={{ background: p.previousTeam.color }}>{p.previousTeam.abbreviation}</span> : <span className="text-muted">—</span>}</td>
                 <td className="p-2"><span className={`rounded px-2 py-0.5 text-xs font-bold ${statusCls[p.status]}`}>{p.status}</span></td>
-                <td className="p-2">{p.status === "SOLD" ? <span><span className="money font-bold">{money(p.soldPrice)}</span> <span style={{ color: p.soldTo?.color }}>{p.soldTo?.abbreviation}</span>{p.viaRtm && <span className="ml-1 rounded bg-rtm/20 px-1 text-[9px] text-rtm-2">RTM</span>}</span> : "—"}</td>
+                <td className="p-2">{p.status === "SOLD" ? <span><span className="money font-bold">{money(p.soldPrice)}</span> <span style={{ color: p.soldTo?.color }}>{p.soldTo?.abbreviation}</span>{p.viaRtm && <span className="ml-1 rounded bg-rtm/20 px-1 text-xs text-rtm-2">RTM</span>}</span> : "—"}</td>
                 <td className="p-2"><div className="flex flex-wrap gap-1">
                   <button className="rounded bg-panel-2 px-2 py-0.5 text-xs" onClick={() => setEdit(p)}>Edit</button>
                   {["UNSOLD", "SKIPPED"].includes(p.status) && <button className="rounded bg-gold/20 px-2 py-0.5 text-xs text-gold" onClick={() => call("/control", "POST", { action: "REQUEUE", playerId: p.id }, "Back in queue")}>Re-queue</button>}

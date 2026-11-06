@@ -25,11 +25,8 @@ function renderToggle(label: string, hint: string, on: boolean, set: (v: boolean
 function renderNum(label: string, value: number, set: (v: number) => void, min: number, max: number, suffix?: string) {
   return (
     <label className="block">
-      <span className="label">{label}</span>
-      <div className="flex items-center gap-2">
-        <input type="number" inputMode="numeric" className="input w-full" value={value} min={min} max={max} onChange={(e) => set(Number(e.target.value))} />
-        {suffix && <span className="shrink-0 text-xs text-muted">{suffix}</span>}
-      </div>
+      <span className="label">{label}{suffix && <span className="ml-1 font-normal normal-case tracking-normal">· {suffix}</span>}</span>
+      <input type="number" inputMode="numeric" className="input tap w-full" value={value} min={min} max={max} onChange={(e) => set(Number(e.target.value))} />
     </label>
   );
 }
@@ -44,16 +41,16 @@ export function RoomsHub({ user, rooms }: { user: { id: string; name: string }; 
   const [timer, setTimer] = useState(15);
   const [rtm, setRtm] = useState(true);
   const [rtmCards, setRtmCards] = useState(2);
-  const [autoSell, setAutoSell] = useState(true);
   const [creating, setCreating] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(rooms.length === 0);
 
   async function create(e: React.FormEvent) {
     e.preventDefault(); setErr(null); setCreating(true);
     try {
-      const res = await fetch("/api/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim() || undefined, isPublic, startingPurse: Math.round(purseCr * 100), maxSquadSize: maxSquad, maxOverseas, timerSeconds: timer, rtmEnabled: rtm, defaultRtmCards: rtmCards, autoSell }) });
+      const res = await fetch("/api/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim() || undefined, isPublic, startingPurse: Math.round(purseCr * 100), maxSquadSize: maxSquad, maxOverseas, timerSeconds: timer, rtmEnabled: rtm, defaultRtmCards: rtmCards }) });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !j.code) { setErr(j.error ?? "Could not create the room"); push({ title: "Could not create room", body: j.error, tone: "error" }); return; }
       push({ title: "Room created", body: `Code ${j.code}`, tone: "success" });
@@ -74,16 +71,19 @@ export function RoomsHub({ user, rooms }: { user: { id: string; name: string }; 
   return (
     <>
       <Nav />
-      <main className="stadium page-enter relative mx-auto max-w-7xl px-4 py-6 md:py-8">
+      <main className="stadium page-enter relative mx-auto max-w-7xl px-4 py-5 md:py-8">
         <div className="text-xs font-semibold uppercase tracking-widest text-gold">Welcome, {user.name}</div>
-        <h1 className="display text-4xl md:text-5xl">Your auction rooms</h1>
-        <p className="mt-1 text-sm text-muted">Create a room and share the code, or join a friend&apos;s room. Each room has its own 10 franchises, player pool and purse.</p>
+        <h1 className="display text-3xl md:text-5xl">Your auction rooms</h1>
+        <p className="mt-1 hidden text-sm text-muted sm:block">Create a room and share the code, or join a friend&apos;s room. Each room has its own 10 franchises, player pool and purse.</p>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <section className="card sheen p-4 md:p-5">
-            <h2 className="display text-2xl">Create a room</h2>
-            <form onSubmit={create} className="mt-3 space-y-3">
-              <label className="block"><span className="label">Room name</span><input className="input w-full" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} placeholder={`${user.name}'s Auction`} /></label>
+        <div className="mt-5 grid gap-5 md:mt-6 md:gap-6 lg:grid-cols-2">
+          {/* phones: join + my rooms first, create collapsed below */}
+          <section className="card sheen order-last p-4 md:p-5 lg:order-none">
+            <button type="button" onClick={() => setShowCreate((v) => !v)} className="flex w-full items-center justify-between text-left lg:pointer-events-none" aria-expanded={showCreate}>
+              <h2 className="display text-2xl">Create a room</h2><span className="text-xl text-gold lg:hidden">{showCreate ? "−" : "+"}</span>
+            </button>
+            <form onSubmit={create} className={`mt-3 space-y-3 ${showCreate ? "" : "hidden"} lg:block`}>
+              <label className="block"><span className="label">Room name</span><input className="input tap w-full" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} placeholder={`${user.name}'s Auction`} /></label>
               <div className="grid grid-cols-2 gap-3">
                 {renderNum("Purse per team", purseCr, setPurseCr, 1, 1000, `Cr = ${money(Math.round(purseCr * 100))}`)}
                 {renderNum("Max squad", maxSquad, setMaxSquad, 1, 30)}
@@ -93,26 +93,25 @@ export function RoomsHub({ user, rooms }: { user: { id: string; name: string }; 
               {renderToggle("Public room", "Listed in the public directory so anyone can find it", isPublic, setPublic)}
               {renderToggle("Right-To-Match cards", "Owners can match the winning bid for their former players", rtm, setRtm)}
               {rtm && renderNum("RTM cards per team", rtmCards, setRtmCards, 0, 10)}
-              {renderToggle("Auto-sell on timer", "Hammer falls automatically when the clock hits zero", autoSell, setAutoSell)}
               {err && <p className="text-sm text-live">{err}</p>}
-              <button type="submit" disabled={creating} className="btn-gold w-full !py-3 disabled:opacity-60">{creating ? "Creating…" : "Create room →"}</button>
+              <button type="submit" disabled={creating} className="btn-gold tap w-full text-base disabled:opacity-60">{creating ? "Creating…" : "Create room →"}</button>
             </form>
           </section>
 
-          <div className="space-y-6">
+          <div className="order-first space-y-5 md:space-y-6 lg:order-none">
             <section className="card p-4 md:p-5">
               <h2 className="display text-2xl">Join by code</h2>
               <p className="mt-1 text-xs text-muted">Ask the host for the 6-character code.</p>
-              <form onSubmit={join} className="mt-3 flex flex-col gap-2 sm:flex-row">
-                <input className="input w-full font-mono text-lg uppercase tracking-[.3em]" value={joinCode} onChange={(e) => setJoinCode(normCode(e.target.value))} placeholder="ABC234" maxLength={6} autoCapitalize="characters" autoCorrect="off" spellCheck={false} />
-                <button type="submit" className="btn-ghost shrink-0 !py-3 sm:!py-2">Join room</button>
+              <form onSubmit={join} className="mt-3 flex gap-2">
+                <input className="input tap w-full font-mono text-lg uppercase tracking-[.3em]" value={joinCode} onChange={(e) => setJoinCode(normCode(e.target.value))} placeholder="ABC234" maxLength={6} autoCapitalize="characters" autoCorrect="off" spellCheck={false} />
+                <button type="submit" className="btn-gold tap shrink-0 !px-5">Join</button>
               </form>
             </section>
 
             <section>
               <div className="flex items-center justify-between"><h2 className="display text-2xl">My rooms</h2><span className="text-xs text-muted">{rooms.length} room{rooms.length === 1 ? "" : "s"}</span></div>
               {rooms.length === 0 ? (
-                <div className="card mt-3 p-5 text-center text-sm text-muted">You haven&apos;t joined any rooms yet. Create one on the left or join with a code.</div>
+                <div className="card mt-3 p-5 text-center text-sm text-muted">You haven&apos;t joined any rooms yet. Create one or join with a code.</div>
               ) : (
                 <ul className="mt-3 space-y-3">
                   {rooms.map((room) => (
@@ -134,9 +133,9 @@ export function RoomsHub({ user, rooms }: { user: { id: string; name: string }; 
                         </div>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <Link href={`/r/${room.code}`} className="btn-gold flex-1 text-center !py-2.5 sm:flex-none">Open</Link>
-                        {room.isHost && <Link href={`/r/${room.code}/host`} className="btn-ghost flex-1 text-center !py-2.5 sm:flex-none">Host console</Link>}
-                        {room.isHost && <button type="button" disabled={deleting === room.code} onClick={() => del(room.code)} className="btn-ghost !py-2.5 text-live disabled:opacity-60">{deleting === room.code ? "Deleting…" : "Delete"}</button>}
+                        <Link href={`/r/${room.code}`} className="btn-gold tap flex-1 text-center sm:flex-none">Open</Link>
+                        {room.isHost && <Link href={`/r/${room.code}/host`} className="btn-ghost tap flex-1 text-center sm:flex-none">Host</Link>}
+                        {room.isHost && <button type="button" disabled={deleting === room.code} onClick={() => del(room.code)} className="btn-ghost tap text-live disabled:opacity-60">{deleting === room.code ? "Deleting…" : "Delete"}</button>}
                       </div>
                     </li>
                   ))}

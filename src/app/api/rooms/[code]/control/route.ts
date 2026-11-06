@@ -21,7 +21,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       case "START_TIMER": await engine.startTimer(id); break;
       case "PAUSE_TIMER": await engine.pauseTimer(id); break;
       case "RESET_TIMER": await engine.resetTimer(id); break;
-      case "SELL": result = await engine.sellPlayer(id); break;
       case "UNSOLD": await engine.markUnsold(id); break;
       case "SKIP": await engine.skipPlayer(id); break;
       case "NEXT": await engine.nextPlayer(id); break;

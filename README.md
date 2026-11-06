@@ -3,9 +3,9 @@
 # 🏏 IPL Mega Auction
 
 **Every Player Has a Price. Some Have a Match.**
-An open-source, self-hostable IPL franchise auction platform. Anyone signs in, **creates a room**, shares the 6-character code, friends claim the ten franchises and the host runs a live auction — a 273-player pool, ₹120 Cr purse per team, real-time bidding on the official IPL increment ladder, and **Right-To-Match (RTM) cards** that work only on each franchise's fixed list of former players. Works great on phones.
+An open-source, self-hostable IPL franchise auction platform. Anyone signs in, **creates a room**, shares the 6-character code, friends claim the ten franchises and the host runs a live auction — a 547-player IPL 2026 pool, ₹120 Cr purse per team, real-time bidding on the official IPL increment ladder, and **Right-To-Match (RTM) cards** that work only on each franchise's fixed list of former players. Works great on phones.
 
-Built in the same stack and visual language as [hpl-auction](https://github.com/vardhan23v/hpl-auction); player pool from the open-source [Crick Auction](https://github.com/Shaurya01836/ipl-auction) dataset (Apache-2.0). Hosted on **Railway** (app + MySQL).
+Built in the same stack and visual language as [hpl-auction](https://github.com/vardhan23v/hpl-auction); player pool from the open-source [Crick Auction](https://github.com/Shaurya01836/ipl-auction) dataset (Apache-2.0). Hosted on **Vercel** (app) + **Supabase** (Postgres, Auth, Realtime).
 
 [![Play it live](https://img.shields.io/badge/▶%20PLAY%20IT%20LIVE-ipl--web--production.up.railway.app-F5B82E?style=for-the-badge&logo=cricket&logoColor=black)](https://ipl-web-production.up.railway.app)
 
@@ -14,9 +14,8 @@ Built in the same stack and visual language as [hpl-auction](https://github.com/
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS 4](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![Prisma 6](https://img.shields.io/badge/Prisma-6-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io)
-[![MySQL](https://img.shields.io/badge/MySQL-8-4479A1?style=for-the-badge&logo=mysql&logoColor=white)](https://www.mysql.com)
-[![Socket.IO](https://img.shields.io/badge/Socket.IO-realtime-010101?style=for-the-badge&logo=socket.io&logoColor=white)](https://socket.io)
-[![Railway](https://img.shields.io/badge/Hosted_on-Railway-0B0D0E?style=for-the-badge&logo=railway&logoColor=white)](https://railway.com)
+[![Supabase](https://img.shields.io/badge/Supabase-Postgres_·_Auth_·_Realtime-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
+[![Vercel](https://img.shields.io/badge/Hosted_on-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F5B82E?style=for-the-badge)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-00C853?style=for-the-badge&logo=github&logoColor=white)](https://github.com/vardhan23v/ipl-auction/pulls)
 
@@ -31,7 +30,7 @@ Sign in with Google or as a guest, create a room, send the code to your friends 
 1. **Create a room** at `/rooms` (Google or guest sign-in). Pick purse, squad size, timer, RTM cards. You become the **host**.
 2. **Share the code** — friends open `/r/CODE` (or type the code on the home page) and land in the room lobby.
 3. **Claim franchises** — each manager picks one of the ten franchises; the host can kick/reassign.
-4. **Host runs the auction** from the host console: start, queue, timer, SELL / UNSOLD / UNDO. The host never bids — **only a franchise's manager can bid, and only for their own team** (exactly like crickauction). Managers bid from the Live screen (`/r/CODE/live`) on their phones; unclaimed franchises simply sit out. Spectators watch the same screen or the projector screen `/r/CODE/display`.
+4. **Host runs the auction** from the host console: start, queue, timer, UNSOLD / UNDO — when the clock runs out after bidding, the player is sold automatically. The host never bids — **only a franchise's manager can bid, and only for their own team** (exactly like crickauction). Managers bid from the Live screen (`/r/CODE/live`) on their phones; unclaimed franchises simply sit out. Spectators watch the same screen or the projector screen `/r/CODE/display`.
 5. **The creator ends the auction** whenever they like — "End the auction" in the lobby, the live header or the host console. A lot still on the block is voided and the results become final.
 
 Rooms are independent — many groups can run auctions at once on one deployment. Public rooms are listed on the home page; private rooms are code-only.
@@ -45,36 +44,31 @@ Rooms are independent — many groups can run auctions at once on one deployment
   2. **Final raise** — the winning bidder may raise the price once (or keep it).
   3. **Match** — the previous franchise matches the final price (card consumed) or declines.
   RTM is only possible for players on a franchise's **fixed list** (`Player.previousTeamId`, pre-filled from IPL 2025 squads, editable per player in the admin panel), needs an unused card, enough purse, and room in the squad and overseas quota. Each step has a timeout with a safe default (pass / keep / decline).
-- **Shared countdown + auto-sell** — one server timer; when it hits zero the highest bidder wins (after the RTM window) or the player goes unsold. Can be switched off for a manual auctioneer.
-- **Transaction-safe sales** — SELL/MATCH run in one MySQL transaction with `SELECT … FOR UPDATE` row locks: squad entry, purse, overseas count, RTM card, player status, auction event — commit or roll back everything. **UNDO** reverses the last sale including the RTM card.
+- **Shared countdown + auto-sell** — one server timer; when it hits zero the highest bidder wins (after the RTM window) or the player goes unsold. There is no manual SELL button.
+- **Transaction-safe sales** — every action runs in one Postgres transaction behind a per-room advisory lock, with `SELECT … FOR UPDATE` row locks on every sale and RTM match: squad entry, purse, overseas count, RTM card, player status, auction event — commit or roll back everything. **UNDO** reverses the last sale including the RTM card.
 - **Rooms & lobby (crickauction-style)** — Google or guest sign-in, create or join a room by code, then claim one of the ten franchises; the host can kick/reassign owners.
 - **Owner dashboard** — purse, squad, overseas, RTM cards, big BID button with ladder quick-bids and custom jump bids, RTM decision buttons when it's their call, their RTM-eligible list.
-- **Host console** — start player (queue or hand-picked), timer start/pause/reset, SELL / UNSOLD / SKIP / NEXT / UNDO, order the queue by set, end the auction at any time. The host never bids: only a franchise's manager bids, and only for their own team, exactly like crickauction (unclaimed franchises sit out).
+- **Host console** — start player (queue or hand-picked), timer start/pause/reset, UNSOLD / SKIP / NEXT / UNDO (sales happen automatically when the clock ends), order the queue by set, end the auction at any time. The host never bids: only a franchise's manager bids, and only for their own team, exactly like crickauction (unclaimed franchises sit out).
 - **Room management (host)** — franchises (names, colours, logos, RTM cards per team), players (CRUD, RTM list editing, assign/move, re-import the pool), drag-to-reorder queue, sold/unsold lists, bid & event log, settings, danger zone (reset / delete room).
 - **Platform admin** — `/admin` lists every room and user on the deployment.
 - **Room pages** — live room, projector **big screen**, player pool browser, squads, **RTM board**, history, analytics (Recharts), results with a **Franchise Strength** leaderboard — all under `/r/CODE/…`.
 
 ## 🚀 Quick start
 
-**Prerequisites:** Node ≥ 20, MySQL 8 (Docker is easiest).
+**Prerequisites:** Node ≥ 20 and a free [Supabase](https://supabase.com) project (pick the region closest to your players; set the same region for Vercel functions in `vercel.json`).
+
+1. In Supabase: **Authentication → Sign In / Providers** → enable **Anonymous sign-ins** (guests) and, optionally, **Google** (paste your Google OAuth client ID/secret; in Google Cloud add the redirect URI Supabase shows you). Under **URL Configuration** add `http://localhost:3000/auth/callback` (and later your Vercel URL `https://<app>.vercel.app/auth/callback`).
+2. Copy the connection strings and API keys into `.env`:
 
 ```bash
-docker run -d --name ipl-mysql -e MYSQL_ROOT_PASSWORD=iplroot -e MYSQL_DATABASE=ipl -e MYSQL_USER=ipl -e MYSQL_PASSWORD=iplpass -p 3306:3306 mysql:8.4
-docker exec ipl-mysql mysql -uroot -piplroot -e "GRANT ALL PRIVILEGES ON *.* TO 'ipl'@'%'; FLUSH PRIVILEGES;"   # Prisma shadow DB
-cp .env.example .env
+cp .env.example .env     # fill DATABASE_URL, DIRECT_URL, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SEED_PASSWORD
 npm install
-npx prisma migrate dev
-npm run db:seed          # creates the platform admin account (rooms bring their own pool)
+npx prisma migrate deploy
+npm run db:seed          # creates the platform admin (Supabase email+password user, role ADMIN)
 npm run dev              # http://localhost:3000
 ```
 
-**Sign-in works like crickauction.in:** press **Continue with Google** or **Join as Guest** (just a name), then create a room or join one by code. Inside a room's lobby you claim a free franchise — that makes you its OWNER for that room. The platform admin uses the email + password login:
-
-| Role | Email | Password |
-|---|---|---|
-| Platform admin | `admin@ipl.local` | `ipl2026` (or `SEED_PASSWORD`) |
-
-Google sign-in appears once `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` are set (OAuth redirect URI: `<NEXTAUTH_URL>/api/auth/callback/google`); guest sign-in always works. Spectators need no account — `/r/CODE/live` and `/r/CODE/display` are public.
+**Sign-in works like crickauction.in:** press **Continue with Google** or **Join as Guest** (just a name), then create a room or join one by code. Inside a room's lobby you claim a free franchise — that makes you its OWNER for that room. The platform admin uses **Admin sign-in** with `SEED_ADMIN_EMAIL` / `SEED_PASSWORD`. Spectators need no account — `/r/CODE/live` and `/r/CODE/display` are public.
 
 ## 📏 Auction rules (defaults, editable per room by the host)
 
@@ -92,55 +86,48 @@ Money is stored in **lakhs** as integers (₹120 Cr = `12000`).
 ## 🏗 Architecture
 
 ```
-Browser ──HTTP──▶ Next.js 16 (App Router) ──┐
-   │                                        ├──▶ Prisma ──▶ MySQL (Railway)
-   └──WebSocket──▶ Socket.IO ──▶ Auction engine ┘
-                   (same Node process — server.ts)
+Phone ──HTTPS (bids, RTM, host actions)──▶ Vercel · Next.js 16 API ──▶ Prisma ──▶ Supabase Postgres
+  ▲                                              │  (per-room advisory lock, one transaction per action)
+  └──── Supabase Realtime channel room:CODE ◀────┘  (snapshot broadcast after commit)
 ```
 
-- `server.ts` — custom Node server running Next.js and Socket.IO on one port.
-- `src/server/auction-engine.ts` — single source of truth, scoped per room (`roomId`). Every mutation runs under a per-room mutex and persists to MySQL. State machine: `WAITING → LIVE ⇄ PAUSED`, `LIVE → PLAYER_LIVE → SOLD | RTM_OFFER → RTM_RAISE → RTM_MATCH → SOLD`, `PLAYER_LIVE → UNSOLD`, `… → COMPLETED`.
-- `src/server/socket.ts` — authenticates sockets from the NextAuth JWT, clients `room:join {code}` a Socket.IO room, rate-limits bids, handles `bid:place` and `rtm:action`, broadcasts full snapshots to that room only.
-- `src/hooks/useAuction.ts` — client hook: snapshot, offset-corrected countdowns (bid + RTM), SOLD/UNSOLD/RTM flashes.
-- `prisma/data/players.json` — the pool (name, role, nationality, set, base price, photo, stats, rating, previous franchise). Copied into every new room by `src/lib/pool.ts`.
-- `src/lib/room.ts` / `src/lib/api.ts` — room codes, `getRoomAccess()` (host / owner / spectator), `roomGuard()` for the `/api/rooms/[code]/…` routes.
+- **No long-running server.** Everything runs as Vercel functions; live updates go out through Supabase Realtime.
+- `src/server/auction-engine.ts` — single source of truth, scoped per room. Every mutation runs in one Postgres transaction that first takes `pg_advisory_xact_lock(hashtext(roomId))`, so concurrent bids from any instance are serialised. Broadcasts are queued and published (with a fresh snapshot) only after commit. State machine: `WAITING → LIVE ⇄ PAUSED`, `LIVE → PLAYER_LIVE → SOLD | RTM_OFFER → RTM_RAISE → RTM_MATCH → SOLD`, `PLAYER_LIVE → UNSOLD`, `… → COMPLETED`.
+- **Clocks without timers:** the bidding clock and RTM windows are deadlines in the `Room` row. `settleDue()` applies an expired one (auto-sell / unsold / RTM pass-keep-decline). It runs before every action, on `GET /state`, and on `POST /api/rooms/CODE/tick`, which every live screen calls when its countdown reaches zero.
+- `src/lib/realtime-server.ts` publishes via Supabase's HTTP broadcast API; `src/lib/realtime-client.ts` is the shared per-room channel in the browser (broadcast + presence for "N here").
+- `src/lib/auth.ts` — Supabase Auth (Google, anonymous guests, admin email+password). The `User` table is the app profile keyed by the Supabase user id; `src/proxy.ts` refreshes the session cookie.
+- `src/hooks/useAuction.ts` — client hook: snapshot, optimistic bids, offset-corrected countdowns, SOLD/UNSOLD/RTM flashes.
+- `prisma/data/players.json` — the pool. Copied into every new room by `src/lib/pool.ts`.
+- All tables have row-level security enabled with no policies: the browser can't read or write them through Supabase's REST API; only the server (Prisma) can.
 
-### Realtime events
-`auction:started/paused/resumed/completed` · `player:started/sold/unsold/skipped/next` · `bid:placed/accepted/rejected` · `rtm:offer/raise/match/passed` · `timer:updated` · `team:purseUpdated/squadUpdated` · `auction:undo` · `state:sync` — every event carries the full snapshot.
+### Realtime events (channel `room:CODE`)
+`auction:started/paused/resumed/completed` · `player:started/sold/unsold/skipped/next` · `bid:accepted` · `rtm:offer/raise/match` · `timer:updated` · `team:purseUpdated` · `room:members` · `auction:undo` · `state:sync` — every event carries the full snapshot.
 
-## ☁️ Deployment on Railway
+## ☁️ Deployment (Vercel + Supabase)
 
-One service runs the app + WebSockets, alongside Railway **MySQL** on the private network. `npm start` runs `prisma migrate deploy` before booting, so every deploy migrates the database itself; `/api/health` is the health check.
-
-1. Create a Railway project → add **MySQL**.
-2. Add a service from this GitHub repo (or deploy from your machine with `railway up --service <service> --ci`). Variables:
+1. Supabase project set up as in the quick start (migrations are applied by the Vercel build).
+2. On Vercel, import this GitHub repo. `vercel.json` pins functions to `hnd1` (Tokyo — keep it in the same region as your Supabase project) and builds with `npm run vercel-build` (`prisma generate && prisma migrate deploy && next build`).
+3. Environment variables (Production + Preview):
 
 | Variable | Value |
 |---|---|
-| `DATABASE_URL` | `${{MySQL.MYSQL_URL}}` (or `mysql://root:…@mysql.railway.internal:3306/railway`) |
-| `NEXTAUTH_SECRET` | a long random string |
-| `NEXTAUTH_URL` | the public URL of the service |
-| `SOCKET_SERVER_URL` | same as `NEXTAUTH_URL` |
-| `NODE_ENV` | `production` |
-| `SEED_PASSWORD` | optional, password for the seeded platform admin |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | optional, enables "Continue with Google" |
+| `DATABASE_URL` | Supabase pooled URL, port 6543, `?pgbouncer=true&connection_limit=1` |
+| `DIRECT_URL` | Supabase direct/session URL, port 5432 (migrations) |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://<project-ref>.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon / publishable key |
+| `SUPABASE_SERVICE_ROLE_KEY` | service_role / secret key (server only) |
 
-3. Seed the platform admin once (idempotent):
-
-```bash
-railway ssh --service <service> -- npm run db:seed
-```
-
-Keep exactly **1 replica** — the live engine is a single-process design.
+4. Add `https://<your-app>.vercel.app/auth/callback` to Supabase → Authentication → URL Configuration, then run `npm run db:seed` once from your machine to create the admin.
 
 ## 🧪 Scripts
 
 ```bash
-npm run dev          # tsx watch server.ts (Next dev + Socket.IO)
+npm run dev          # next dev
 npm run build        # prisma generate && next build
-npm start            # production server
+npm start            # next start
 npm run typecheck    # tsc --noEmit
-npm run db:seed      # idempotent: creates/updates the platform admin (SEED_ADMIN_EMAIL, SEED_PASSWORD)
+npm run db:seed      # idempotent: creates/updates the platform admin in Supabase Auth (SEED_ADMIN_EMAIL, SEED_PASSWORD)
+npx tsx scripts/check-pool.ts  # validate prisma/data/players.json
 ```
 
 ## 🤝 Contributing

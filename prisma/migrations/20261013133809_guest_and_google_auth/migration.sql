@@ -1,3 +1,0 @@
--- AlterTable
-ALTER TABLE `User` ADD COLUMN `image` TEXT NULL,
-    ADD COLUMN `isGuest` BOOLEAN NOT NULL DEFAULT false;

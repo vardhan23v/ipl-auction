@@ -16,7 +16,7 @@ const STATE_PILL: Record<string, { label: string; cls: string; dot?: boolean }> 
 function statePill(state: string) {
   const p = STATE_PILL[state] ?? STATE_PILL.LIVE;
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${p.cls}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider ${p.cls}`}>
       {p.dot && <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-live" />}{p.label}
     </span>
   );
@@ -62,36 +62,36 @@ export default async function Home() {
   return (
     <>
       <Nav />
-      <main className="stadium relative page-enter">
+      <main className="stadium page-enter relative flex flex-col sm:block">
         {/* Hero */}
-        <section className="relative mx-auto max-w-7xl px-4 pb-12 pt-14 text-center md:pb-16 md:pt-24">
-          <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-line bg-panel/70 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-widest sm:text-xs">
+        <section className="relative mx-auto flex max-w-7xl flex-col px-4 pb-8 pt-8 text-center sm:block sm:pb-12 sm:pt-14 md:pb-16 md:pt-24">
+          <div className="mx-auto mb-4 inline-flex items-center gap-2 rounded-full border border-line bg-panel/70 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest sm:mb-6">
             <span className={`h-2 w-2 rounded-full ${liveCount ? "live-dot bg-live" : "bg-gold"}`} />{liveCount ? `${liveCount} auction${liveCount > 1 ? "s" : ""} live right now` : "Open-source IPL auction rooms"}
           </div>
-          <h1 className="display text-5xl font-bold leading-[.95] sm:text-6xl md:text-8xl lg:text-9xl">IPL<br /><span className="bg-gradient-to-r from-gold to-gold-2 bg-clip-text text-transparent">Mega Auction</span></h1>
-          <p className="display mt-5 text-xl text-ink/90 sm:text-2xl md:text-4xl">&ldquo;Every Player Has a Price. Some Have a Match.&rdquo;</p>
-          <p className="mx-auto mt-4 max-w-2xl text-sm text-muted sm:text-base md:text-lg">Run a full IPL-style mega auction with your friends in minutes. Create a room, share the code, claim franchises, and let the bidding begin — with Right-To-Match cards for every franchise&rsquo;s former stars.</p>
-          <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+          <h1 className="display order-1 text-5xl font-bold leading-[.95] sm:order-none sm:text-6xl md:text-8xl lg:text-9xl">IPL<br /><span className="bg-gradient-to-r from-gold to-gold-2 bg-clip-text text-transparent">Mega Auction</span></h1>
+          <p className="display order-2 mt-3 text-lg text-ink/90 sm:order-none sm:mt-5 sm:text-2xl md:text-4xl">&ldquo;Every Player Has a Price. Some Have a Match.&rdquo;</p>
+          <p className="order-4 mx-auto mt-4 hidden max-w-2xl text-sm text-muted sm:order-none sm:block sm:text-base md:text-lg">Run a full IPL-style mega auction with your friends in minutes. Create a room, share the code, claim franchises, and let the bidding begin — with Right-To-Match cards for every franchise&rsquo;s former stars.</p>
+          <div className="order-5 mt-4 grid grid-cols-2 gap-2 sm:order-none sm:mt-8 sm:flex sm:flex-row sm:items-center sm:justify-center sm:gap-3">
             {signedIn ? (<>
-              <Link href="/rooms" className="btn-gold !px-6 !py-3 text-base">Create a room</Link>
-              <Link href="/rooms" className="btn-ghost !px-6 !py-3 text-base">My rooms</Link>
+              <Link href="/rooms" className="btn-gold tap !px-6 text-base">Create a room</Link>
+              <Link href="/rooms" className="btn-ghost tap !px-6 text-base">My rooms</Link>
             </>) : (
-              <Link href="/login?next=/rooms" className="btn-gold !px-6 !py-3 text-base">Sign in to create a room</Link>
+              <Link href="/login?next=/rooms" className="btn-gold tap col-span-2 !px-6 text-base">Sign in to create a room</Link>
             )}
-            <a href="#how" className="btn-ghost !px-6 !py-3 text-base">How it works</a>
+            <a href="#how" className="btn-ghost tap col-span-2 hidden !px-6 text-base sm:inline-flex">How it works</a>
           </div>
 
-          <div className="card sheen mx-auto mt-10 max-w-xl p-4 text-left sm:p-5">
+          <div className="card sheen order-3 mx-auto mt-5 w-full max-w-xl p-4 text-left sm:order-none sm:mt-10 sm:p-5">
             <div className="label">Join a room by code</div>
             <JoinByCode compact />
-            <p className="mt-2 text-xs text-muted">Got a code from a friend? Enter it to jump straight into their lobby. You can sign in with Google or a guest name once you&rsquo;re there.</p>
+            <p className="mt-2 hidden text-xs text-muted sm:block">Got a code from a friend? Enter it to jump straight into their lobby. You can sign in with Google or a guest name once you&rsquo;re there.</p>
           </div>
         </section>
 
         {/* Stats strip */}
-        <section className="mx-auto max-w-7xl px-4 py-6">
+        <section className="order-1 mx-auto w-full max-w-7xl px-4 py-6 sm:order-none">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {stats.map((s) => <div key={s.l} className="card p-4 text-center sm:p-5"><div className="display money text-3xl font-bold md:text-4xl">{s.v}</div><div className="mt-1 text-[11px] uppercase tracking-wider text-muted sm:text-xs">{s.l}</div></div>)}
+            {stats.map((s) => <div key={s.l} className="card p-4 text-center sm:p-5"><div className="display money text-3xl font-bold md:text-4xl">{s.v}</div><div className="mt-1 text-xs uppercase tracking-wider text-muted">{s.l}</div></div>)}
           </div>
           <div className="scroll-x mt-4 flex gap-2 pb-1 sm:justify-center sm:flex-wrap">
             {TEAMS.map((t) => (
@@ -104,7 +104,7 @@ export default async function Home() {
         </section>
 
         {/* Public rooms */}
-        <section id="rooms" className="mx-auto max-w-7xl px-4 py-10">
+        <section id="rooms" className="mx-auto w-full max-w-7xl px-4 py-6 sm:py-10">
           {sectionTitle("Public rooms", "Jump into an auction", "Open rooms anyone can join. Private rooms are only reachable by code.")}
           {rooms.length === 0 ? (
             <div className="card p-6 text-center sm:p-10">
@@ -128,10 +128,10 @@ export default async function Home() {
                   </div>
                   <div className="mt-4 flex items-end justify-between gap-3">
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                      <div><div className="text-[10px] uppercase tracking-widest text-muted">Franchises</div><div className="font-semibold"><span className="text-gold">{room._count.teams}</span>/{TEAMS.length} claimed</div></div>
-                      <div><div className="text-[10px] uppercase tracking-widest text-muted">Members</div><div className="font-semibold">{room._count.members}</div></div>
+                      <div><div className="text-xs uppercase tracking-widest text-muted">Franchises</div><div className="font-semibold"><span className="text-gold">{room._count.teams}</span>/{TEAMS.length} claimed</div></div>
+                      <div><div className="text-xs uppercase tracking-widest text-muted">Members</div><div className="font-semibold">{room._count.members}</div></div>
                     </div>
-                    <div className="text-right"><div className="text-[10px] uppercase tracking-widest text-muted">Code</div><div className="font-mono text-base font-bold tracking-[.25em] text-gold">{room.code}</div></div>
+                    <div className="text-right"><div className="text-xs uppercase tracking-widest text-muted">Code</div><div className="font-mono text-base font-bold tracking-[.25em] text-gold">{room.code}</div></div>
                   </div>
                   <div className="mt-3 text-xs text-muted">{money(room.startingPurse)} per franchise</div>
                 </Link>
@@ -141,7 +141,7 @@ export default async function Home() {
         </section>
 
         {/* How it works */}
-        <section id="how" className="mx-auto max-w-7xl px-4 py-10">
+        <section id="how" className="order-2 mx-auto w-full max-w-7xl px-4 py-6 sm:order-none sm:py-10">
           {sectionTitle("How it works", "From room code to final squad")}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map(([n, t, d]) => (
@@ -156,7 +156,7 @@ export default async function Home() {
         </section>
 
         {/* Footer */}
-        <footer className="border-t border-line/60">
+        <footer className="safe-b order-3 border-t border-line/60 sm:order-none">
           <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-8 text-center text-xs text-muted sm:flex-row sm:text-left">
             <div><span className="display text-sm text-ink"><span className="text-gold">IPL</span> Auction</span> · Open source · MIT</div>
             <div className="flex items-center gap-4">

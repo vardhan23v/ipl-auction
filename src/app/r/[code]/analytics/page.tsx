@@ -27,7 +27,7 @@ export default async function Analytics({ params }: { params: Promise<{ code: st
     <RoomShell room={room} access={access}>
       <main className="mx-auto max-w-7xl px-4 py-6 md:py-8">
         <h1 className="display text-4xl md:text-5xl">Analytics</h1>
-        <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5">{tiles.map(([l, v]) => <div key={String(l)} className="card p-4"><div className="text-[11px] uppercase tracking-wider text-muted">{l}</div><div className="display mt-1 truncate text-2xl text-gold">{v}</div></div>)}</div>
+        <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5">{tiles.map(([l, v]) => <div key={String(l)} className="card p-4"><div className="text-xs uppercase tracking-wider text-muted">{l}</div><div className="display mt-1 truncate text-2xl text-gold">{v}</div></div>)}</div>
         <Charts data={data} />
       </main>
     </RoomShell>

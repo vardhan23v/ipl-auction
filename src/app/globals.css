@@ -31,6 +31,8 @@ body {
     radial-gradient(600px 300px at 85% 10%, rgba(255,46,77,.10), transparent 60%),
     repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0 1px, transparent 1px 48px);
 }
+/* Component classes live in the components layer so Tailwind utilities (hidden, md:flex, px-3…) can override them. */
+@layer components {
 .glass { background: rgba(20,27,45,.6); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.07); }
 .card { background: var(--color-panel); border: 1px solid var(--color-line); border-radius: 1rem; min-width: 0; }
 .display { font-family: var(--font-display); letter-spacing: .02em; text-transform: uppercase; }
@@ -44,6 +46,21 @@ body {
 .input { @apply w-full rounded-lg border border-line bg-panel-2 px-3 py-2 text-ink placeholder:text-muted focus:border-gold focus:outline-none; }
 .label { @apply mb-1 block text-xs font-semibold uppercase tracking-wider text-muted; }
 .chip { @apply inline-flex items-center gap-1 rounded-md bg-panel-2 px-2 py-1 text-xs; }
+.pill { @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold; }
+}
+/* 44px minimum touch target (Apple HIG) */
+.tap { min-height: 44px; }
+.safe-b { padding-bottom: max(.5rem, env(safe-area-inset-bottom)); }
+.safe-t { padding-top: env(safe-area-inset-top); }
+@media (max-width: 767px) { .safe-x { padding-left: max(.75rem, env(safe-area-inset-left)); padding-right: max(.75rem, env(safe-area-inset-right)); } }
+/* Space reserved under page content for the fixed room tab bar (+ a dock on live screens) */
+.pb-tabbar { padding-bottom: calc(4.5rem + env(safe-area-inset-bottom)); }
+.pb-dock { padding-bottom: calc(10.5rem + env(safe-area-inset-bottom)); }
+@media (min-width: 768px) { .pb-tabbar, .pb-dock { padding-bottom: 1.5rem; } }
+@keyframes sheet-up { from { transform: translateY(100%) } to { transform: none } }
+.sheet-up { animation: sheet-up .22s cubic-bezier(.2,.9,.3,1) both; }
+@keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+.fade-in { animation: fade-in .18s ease-out both; }
 
 @keyframes pulse-live { 0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255,46,77,.6);} 50% { opacity: .6; box-shadow: 0 0 0 8px rgba(255,46,77,0);} }
 .live-dot { animation: pulse-live 1.4s infinite; }
@@ -97,7 +114,7 @@ img { user-select: none; }
 .floaty { animation: floaty 4s ease-in-out infinite; }
 .team-row { transition: transform .18s ease, box-shadow .18s ease; }
 .team-row:hover { transform: translateX(3px); box-shadow: 0 4px 20px rgba(0,0,0,.35); }
-@media (prefers-reduced-motion: reduce) { .orb,.ember,.ring,.sheen::after,.bar-anim::after,.bid-glow,.floaty,.rtm-pulse { animation: none } }
+@media (prefers-reduced-motion: reduce) { .orb,.ember,.ring,.sheen::after,.bar-anim::after,.bid-glow,.floaty,.rtm-pulse,.live-dot,.gold-text,.rtm-text { animation: none } }
 
 @keyframes goldflow { 0% { background-position: 0% 50% } 100% { background-position: 200% 50% } }
 .gold-text { background: linear-gradient(90deg, #f5b82e, #ffd166, #fff3d6, #ffd166, #f5b82e); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: goldflow 4s linear infinite; }
@@ -109,8 +126,14 @@ input, select, textarea { min-width: 0; max-width: 100%; }
 @media (max-width: 640px) {
   .display { letter-spacing: .01em; }
   .card { border-radius: .85rem; }
+  /* heavy decorative effects cost frames on low-end phones */
+  .sheen::after, .bar-anim::after { display: none; }
+  .orb { filter: blur(28px); }
 }
-.page-enter { animation: reveal .35s ease-out both; }
+html, body { overscroll-behavior-y: none; }
+body { touch-action: manipulation; }
+/* opacity only: a lingering transform would turn this wrapper into the containing block for the fixed docks and tab bar */
+.page-enter { animation: fade-in .25s ease-out both; }
 button, a { -webkit-tap-highlight-color: transparent; }
 @media (hover: none) { .team-row:hover { transform: none; box-shadow: none; } }
 .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
